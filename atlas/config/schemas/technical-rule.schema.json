@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TechnicalRule",
+  "type": "object",
+  "required": [
+    "id",
+    "domain_id",
+    "statement",
+    "rule_type",
+    "source_code_reference_ids",
+    "confidence"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "domain_id": {
+      "type": "string"
+    },
+    "statement": {
+      "type": "string"
+    },
+    "rule_type": {
+      "type": "string"
+    },
+    "layer": {
+      "enum": [
+        "frontend",
+        "backend",
+        "database",
+        "integration",
+        "cross_cutting"
+      ]
+    },
+    "enforcement": {
+      "type": "object"
+    },
+    "source_code_reference_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "confidence": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "review_status": {
+      "enum": [
+        "unreviewed",
+        "accepted",
+        "rejected",
+        "needs_clarification",
+        "superseded"
+      ]
+    }
+  }
+}

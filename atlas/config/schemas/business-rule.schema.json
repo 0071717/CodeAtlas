@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BusinessRule",
+  "type": "object",
+  "required": [
+    "id",
+    "domain_id",
+    "statement",
+    "derived_from_technical_rule_ids",
+    "confidence"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "domain_id": {
+      "type": "string"
+    },
+    "statement": {
+      "type": "string"
+    },
+    "rule_type": {
+      "type": "string"
+    },
+    "derived_from_technical_rule_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "enforcement_summary": {
+      "type": "object"
+    },
+    "confidence": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "review_status": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CodeReference",
+  "type": "object",
+  "required": [
+    "id",
+    "repo_id",
+    "file_path",
+    "symbol_name",
+    "line_start",
+    "line_end"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "repo_id": {
+      "type": "string"
+    },
+    "repo_name": {
+      "type": "string"
+    },
+    "commit": {
+      "type": "string"
+    },
+    "file_path": {
+      "type": "string"
+    },
+    "symbol_name": {
+      "type": "string"
+    },
+    "symbol_type": {
+      "type": "string"
+    },
+    "line_start": {
+      "type": "integer"
+    },
+    "line_end": {
+      "type": "integer"
+    },
+    "language": {
+      "type": "string"
+    },
+    "framework_concept": {
+      "type": "string"
+    },
+    "domain_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "snippet_hash": {
+      "type": "string"
+    },
+    "snippet_summary": {
+      "type": "string"
+    }
+  }
+}

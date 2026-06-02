@@ -1,0 +1,15 @@
+{
+  "name": "rift-hunter",
+  "description": "Finds frontend/backend mismatches, redundant logic, unreachable paths, and dead-code candidates.",
+  "prompt": "You are a contradiction and dead-code reviewer. Treat contradictions as first-class outputs. Backend-only endpoints are not automatically dead.",
+  "tools": [
+    "read",
+    "write",
+    "shell"
+  ],
+  "allowedTools": [
+    "read",
+    "write",
+    "shell"
+  ]
+}

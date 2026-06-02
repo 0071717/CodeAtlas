@@ -1,0 +1,15 @@
+{
+  "name": "memory-smith",
+  "description": "Updates concise .kiro/steering context files from completed extraction artifacts.",
+  "prompt": "Update .kiro/steering files concisely. Do not paste full extraction artifacts. Preserve human-written content where possible.",
+  "tools": [
+    "read",
+    "write",
+    "shell"
+  ],
+  "allowedTools": [
+    "read",
+    "write",
+    "shell"
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UserStory",
+  "type": "object",
+  "required": [
+    "id",
+    "domain_id",
+    "title",
+    "actor",
+    "story",
+    "business_rule_ids"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "domain_id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "actor": {
+      "type": "string"
+    },
+    "story": {
+      "type": "string"
+    },
+    "acceptance_criteria": {
+      "type": "array"
+    },
+    "business_rule_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "technical_rule_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "code_reference_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "confidence": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    }
+  }
+}

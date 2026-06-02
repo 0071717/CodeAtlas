@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ContractMapping",
+  "type": "object",
+  "required": [
+    "id",
+    "domain_id",
+    "frontend",
+    "backend",
+    "alignment_status"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "domain_id": {
+      "type": "string"
+    },
+    "frontend": {
+      "type": "object"
+    },
+    "backend": {
+      "type": "object"
+    },
+    "alignment_status": {
+      "enum": [
+        "aligned",
+        "mismatch",
+        "orphan_frontend_call",
+        "backend_only_endpoint",
+        "unknown"
+      ]
+    },
+    "issues": {
+      "type": "array"
+    }
+  }
+}

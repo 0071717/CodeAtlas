@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Contradiction",
+  "type": "object",
+  "required": [
+    "id",
+    "domain_id",
+    "severity",
+    "type",
+    "summary"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "domain_id": {
+      "type": "string"
+    },
+    "severity": {
+      "enum": [
+        "critical",
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "type": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "impact": {
+      "type": "string"
+    },
+    "recommended_action": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "open",
+        "accepted",
+        "rejected",
+        "resolved",
+        "needs_review"
+      ]
+    }
+  }
+}

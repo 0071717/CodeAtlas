@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Epic",
+  "type": "object",
+  "required": [
+    "id",
+    "title",
+    "user_story_ids"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "domain_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "user_story_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

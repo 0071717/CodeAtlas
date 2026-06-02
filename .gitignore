@@ -1,0 +1,14 @@
+# Logs and temporary output
+atlas/logs/*
+!atlas/logs/.gitkeep
+
+# Extraction outputs may be committed intentionally after review.
+# Uncomment if you want to keep generated outputs out of Git:
+# atlas/domains/*
+# atlas/global/*.yaml
+# atlas/global/*.json
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HighLevelRequirement",
+  "type": "object",
+  "required": [
+    "id",
+    "title",
+    "statement",
+    "epic_ids"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "statement": {
+      "type": "string"
+    },
+    "business_outcome": {
+      "type": "string"
+    },
+    "epic_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "domain_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "confidence": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    }
+  }
+}

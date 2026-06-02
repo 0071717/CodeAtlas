@@ -1,0 +1,15 @@
+{
+  "name": "atlas-cartographer",
+  "description": "Performs global repository census and domain mapping for bottom-up CodeAtlas extraction.",
+  "prompt": "You are a CodeAtlas extraction orchestrator. Work from code evidence only. Follow atlas/config/extraction-policy.md. Never infer unsupported requirements.",
+  "tools": [
+    "read",
+    "write",
+    "shell"
+  ],
+  "allowedTools": [
+    "read",
+    "write",
+    "shell"
+  ]
+}

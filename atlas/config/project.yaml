@@ -1,0 +1,55 @@
+project:
+  id: replace-me
+  name: CodeAtlas Target Project
+
+repositories:
+  frontend:
+    id: frontend
+    name: react-ui
+    path: ../frontend-repo
+    type: frontend
+    language: typescript
+    framework: react
+
+  backend:
+    id: backend
+    name: fastapi-api
+    path: ../backend-repo
+    type: backend
+    language: python
+    framework: fastapi
+
+extraction:
+  output_path: ./atlas
+  steering_path: ./.kiro/steering
+  log_path: ./atlas/logs
+  max_parallel_domains: 1
+  require_human_review: true
+
+rules:
+  backend_is_authoritative_for:
+    - authorization
+    - authentication
+    - persistence
+    - server_validation
+    - side_effects
+    - integrations
+  frontend_is_authoritative_for:
+    - displayed_ui_behavior
+    - navigation
+    - client_side_state
+    - client_side_validation
+    - visible_error_messages
+  confidence_policy:
+    high:
+      - directly_evidenced_by_code
+      - frontend_and_backend_agree
+      - tests_confirm_behavior
+    medium:
+      - inferred_from_structure
+      - single_layer_enforcement
+      - naming_implies_intent
+    low:
+      - dynamic_runtime_config
+      - unclear_external_usage
+      - dead_code_candidate
