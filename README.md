@@ -21,9 +21,30 @@ Raw code
 → User stories
 → Epics
 → High-Level Requirements
+→ Downstream tools
 ```
 
-The Code Map is a semantic, reusable model of the application. Business rules, PR impact analysis, code health checks, test-gap reports, refactor plans, and release governance can all derive from it.
+The Code Map is a semantic, reusable model of the application. Business rules, PR impact analysis, code health checks, test-gap reports, refactor plans, release governance, Playwright planning, sample data, and visualisers can all derive from it.
+
+## Start here
+
+For Kiro/dev agents, read:
+
+```text
+docs/START_HERE_FOR_KIRO.md
+```
+
+For the YAML contract, read:
+
+```text
+docs/YAML_CONTRACT.md
+```
+
+For downstream tools, read:
+
+```text
+docs/TOOLING_ROADMAP.md
+```
 
 ## Why CodeAtlas exists
 
@@ -76,6 +97,7 @@ Code Reference
 | Contradictions and dead-code candidates | Detect mismatches, regressions, unused paths, and structural problems |
 | `.kiro/steering` updates | Give future Kiro sessions durable architecture/debugging context |
 | Maintenance reports | Keep rules aligned as code changes over time |
+| Downstream tool artifacts | Visualisers, code health reports, Playwright plans, sample data, context packs |
 
 ## Code Map foundation
 
@@ -128,6 +150,7 @@ See:
 
 ```text
 docs/CODE_MAP_FOUNDATION.md
+docs/YAML_CONTRACT.md
 ```
 
 ## Agent names
@@ -140,6 +163,7 @@ CodeAtlas uses short, purpose-specific Kiro agents:
 | `domain-scout` | bounded domain extraction |
 | `rift-hunter` | contradiction, mismatch, and dead-code review |
 | `memory-smith` | `.kiro/steering` updates |
+| `atlas-forge` | builds downstream tools from the YAML foundation |
 
 You can override all of them with your own Opus 4.6 agent:
 
@@ -245,6 +269,36 @@ This should run:
 9. validation
 10. all remaining domains
 
+## Downstream tooling
+
+After `atlas/map/`, `atlas/facts/`, and domain artifacts exist, run:
+
+```bash
+./atlas/scripts/run-framework-audit.sh
+./atlas/scripts/run-code-health.sh
+./atlas/scripts/run-visualizer-planner.sh
+./atlas/scripts/run-test-planner.sh
+./atlas/scripts/run-sample-data-planner.sh
+./atlas/scripts/run-context-pack.sh
+```
+
+Or run the suite:
+
+```bash
+./atlas/scripts/run-downstream-suite.sh
+```
+
+Outputs:
+
+```text
+atlas/audit/
+atlas/code-health/
+atlas/visualizer/
+atlas/test-planning/
+atlas/sample-data/
+atlas/context-packs/
+```
+
 ## Maintenance strategy
 
 CodeAtlas should not be a one-time documentation dump. It should become a living requirements and code-quality baseline.
@@ -270,7 +324,14 @@ See:
 docs/MAINTENANCE_STRATEGY.md
 ```
 
-Recommended future modes:
+Maintenance runners:
+
+```bash
+./atlas/scripts/run-pr-impact.sh
+./atlas/scripts/run-release-governance.sh
+```
+
+Recommended future CLI modes:
 
 ```bash
 codeatlas pr-impact --base develop --head feature/foo
@@ -301,7 +362,14 @@ atlas/
   map/
   facts/
   domains/
+  code-health/
+  visualizer/
+  test-planning/
+  sample-data/
+  context-packs/
+  maintenance/
   releases/
+  audit/
   logs/
 
 .kiro/
