@@ -1,6 +1,6 @@
 # CodeAtlas
 
-CodeAtlas is a Kiro-powered architecture discovery, requirements extraction, and requirements maintenance framework for mature codebases.
+CodeAtlas is a Kiro-powered architecture discovery, semantic code mapping, requirements extraction, and requirements maintenance framework for mature codebases.
 
 It is designed for decoupled applications such as:
 
@@ -8,24 +8,28 @@ It is designed for decoupled applications such as:
 - FastAPI / Pydantic backend
 - layered backend architecture with routers, service files, helper/service dependencies, and OpenSearch/data-access modules
 
-CodeAtlas reverse-engineers the system bottom-up into a traceable requirements pyramid:
+CodeAtlas no longer treats requirements extraction as the first foundation layer. The preferred foundation is now a granular YAML **Code Map**:
 
 ```text
-Code References
-→ Technical Rules
-→ Business Rules
-→ User Stories
+Raw code
+→ Architecture discovery
+→ Repo inventory
+→ Granular Code Map YAML
+→ Technical facts
+→ Technical rules
+→ Business rules
+→ User stories
 → Epics
 → High-Level Requirements
 ```
 
-It also maintains a living requirements baseline as development continues across `develop/*`, `release/*`, and production branches.
+The Code Map is a semantic, reusable model of the application. Business rules, PR impact analysis, code health checks, test-gap reports, refactor plans, and release governance can all derive from it.
 
 ## Why CodeAtlas exists
 
 Mature systems often contain their real requirements inside the codebase rather than in a requirements document.
 
-CodeAtlas turns embedded behaviour into a structured, reviewable, traceable corpus that can later power an interactive source-of-truth UI.
+CodeAtlas turns embedded behaviour into structured YAML artifacts that are reviewable, traceable, and reusable by other tools.
 
 The long-term goal is bidirectional traceability:
 
@@ -35,6 +39,8 @@ High-Level Requirement
 → User Story
 → Business Rule
 → Technical Rule
+→ Technical Fact
+→ Code Map Node
 → Code Reference
 ```
 
@@ -42,6 +48,8 @@ and backwards:
 
 ```text
 Code Reference
+→ Code Map Node
+→ Technical Fact
 → Technical Rule
 → Business Rule
 → User Story
@@ -57,15 +65,70 @@ Code Reference
 | Repo health report | Detect frameworks, layout, generated folders, and context-bloat risks |
 | Frontend/backend inventories | Catalogue routes, endpoints, schemas, services, hooks, forms, API clients |
 | Domain map | Slice the system into manageable business domains |
+| **Granular Code Map YAML** | Build the reusable semantic model of the codebase |
+| Technical facts | Normalize objective, evidence-backed behaviour from the map |
 | Code references | Provide evidence back to file/symbol/line ranges |
-| Technical rules | Capture objective code behaviour |
+| Technical rules | Capture objective system behaviour derived from technical facts |
 | Contract mappings | Link frontend API calls to backend endpoints/models |
-| Business rules | Translate implementation facts into business language |
+| Business rules | Translate technical rules into business language |
 | User stories | Express behaviour from an actor/user perspective |
 | Epics and high-level requirements | Group behaviours into product-level capabilities |
 | Contradictions and dead-code candidates | Detect mismatches, regressions, unused paths, and structural problems |
 | `.kiro/steering` updates | Give future Kiro sessions durable architecture/debugging context |
 | Maintenance reports | Keep rules aligned as code changes over time |
+
+## Code Map foundation
+
+The Code Map should be semantic, not a raw AST dump.
+
+It should capture:
+
+- domains
+- UI routes
+- backend endpoints
+- frontend API clients
+- Pydantic schemas/models
+- service functions
+- helper/service calls
+- OpenSearch/data-access calls such as `*_os.py`
+- call graph edges
+- validation rules
+- permission checks
+- error conditions
+- state transitions
+- side effects
+- frontend/backend contract links
+- test evidence where available
+
+Recommended map outputs:
+
+```text
+atlas/map/
+  repo-map.yaml
+  domain-map.yaml
+  code-references.yaml
+  backend-map.yaml
+  frontend-map.yaml
+  api-map.yaml
+  schema-map.yaml
+  call-graph.yaml
+  ui-flow-map.yaml
+  data-access-map.yaml
+  validation-map.yaml
+  permission-map.yaml
+  error-map.yaml
+  state-map.yaml
+  integration-map.yaml
+
+atlas/facts/
+  technical-facts.yaml
+```
+
+See:
+
+```text
+docs/CODE_MAP_FOUNDATION.md
+```
 
 ## Agent names
 
@@ -73,7 +136,7 @@ CodeAtlas uses short, purpose-specific Kiro agents:
 
 | Agent | Purpose |
 |---|---|
-| `atlas-cartographer` | global repo discovery, architecture discovery, domain mapping |
+| `atlas-cartographer` | architecture discovery, repo discovery, domain mapping, Code Map extraction |
 | `domain-scout` | bounded domain extraction |
 | `rift-hunter` | contradiction, mismatch, and dead-code review |
 | `memory-smith` | `.kiro/steering` updates |
@@ -120,7 +183,7 @@ repositories:
 
 ## Recommended first run
 
-Run architecture discovery first. This lets Kiro do the heavy groundwork of deriving backend/frontend architecture before it extracts requirements.
+Run architecture discovery first. This lets Kiro do the heavy groundwork of deriving backend/frontend architecture before it maps the codebase.
 
 ```bash
 export KIRO_AGENT="your-opus-agent-name"
@@ -136,6 +199,19 @@ atlas/architecture-discovery/human-review-checklist.md
 atlas/architecture-discovery/backend-architecture-verified.md
 atlas/architecture-discovery/frontend-architecture-verified.md
 atlas/architecture-discovery/extraction-traversal-guide.md
+```
+
+Then build the granular Code Map and technical facts:
+
+```bash
+./atlas/scripts/run-code-map.sh
+```
+
+Review:
+
+```text
+atlas/map/
+atlas/facts/technical-facts.yaml
 ```
 
 Then run a pilot extraction:
@@ -156,27 +232,30 @@ Then run fully hands-off:
 ./atlas/scripts/run-auto.sh
 ```
 
-This runs:
+This should run:
 
 1. architecture discovery
 2. architecture verification
 3. repo health check
 4. repository census
 5. domain map
-6. auto-selected pilot domain
-7. validation
-8. all remaining domains
+6. Code Map extraction
+7. technical fact extraction
+8. auto-selected pilot domain
+9. validation
+10. all remaining domains
 
 ## Maintenance strategy
 
-CodeAtlas should not be a one-time documentation dump. It should become a living requirements baseline.
+CodeAtlas should not be a one-time documentation dump. It should become a living requirements and code-quality baseline.
 
 For ongoing development:
 
 ```text
 Code change
 → impacted files
-→ impacted domains
+→ impacted Code Map nodes
+→ impacted domains/rules
 → targeted re-extraction
 → rule delta
 → contradiction/regression scan
@@ -198,6 +277,8 @@ codeatlas pr-impact --base develop --head feature/foo
 codeatlas rule-delta --domain knowledge_management
 codeatlas release-freeze --release 2026.07
 codeatlas drift-check --branch develop
+codeatlas architecture-conformance --domain knowledge_management
+codeatlas test-gap-analysis --domain knowledge_management
 ```
 
 ## Branch policy
@@ -217,6 +298,8 @@ atlas/
   prompts/
   scripts/
   global/
+  map/
+  facts/
   domains/
   releases/
   logs/
@@ -226,6 +309,8 @@ atlas/
   steering/
 ```
 
-`atlas/` contains detailed extraction artifacts.
+`atlas/map/` and `atlas/facts/` contain the reusable foundation artifacts.
+
+`atlas/domains/` contains domain-level rule/story/requirement artifacts.
 
 `.kiro/steering/` contains compact durable memory for future Kiro debugging, feature work, refactoring, and onboarding.
