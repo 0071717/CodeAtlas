@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CodeAtlasMapNode",
+  "type": "object",
+  "required": ["id", "kind", "confidence"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Stable hierarchical ID, e.g. endpoint.knowledge.search"
+    },
+    "domain": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "description": "Node kind such as backend_endpoint, service_function, frontend_route, schema_model, permission_rule"
+    },
+    "repo": {
+      "type": "string"
+    },
+    "file": {
+      "type": "string"
+    },
+    "symbol": {
+      "type": "string"
+    },
+    "line_start": {
+      "type": "integer"
+    },
+    "line_end": {
+      "type": "integer"
+    },
+    "confidence": {
+      "enum": ["high", "medium", "low"]
+    },
+    "needs_review": {
+      "type": "boolean"
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}
