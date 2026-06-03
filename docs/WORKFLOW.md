@@ -6,7 +6,7 @@ CodeAtlas is architecture-first and map-first.
 
 Do not start by extracting business rules.
 
-First teach Kiro how the system is structured, then build a granular semantic YAML Code Map. Rules, stories, health checks, PR impact reports, and release reports should derive from that map.
+First teach Kiro how the system is structured, then build a granular semantic YAML Code Map. Rules, stories, health checks, PR impact reports, Playwright plans, sample-data plans, Kiro context packs, and release reports should derive from that map.
 
 The recommended progression is:
 
@@ -22,6 +22,7 @@ Architecture Discovery
 → Business Rules
 → User Stories
 → Epics / High-Level Requirements
+→ Downstream Tools
 → Ongoing Maintenance
 ```
 
@@ -31,25 +32,23 @@ Architecture Discovery
 export KIRO_AGENT="your-opus-agent-name"
 export KIRO_DEFAULT_ARGS="--no-interactive --trust-all-tools"
 
-./atlas/scripts/run-architecture-discovery.sh
+./atlas/scripts/run-foundation.sh
 ```
+
+This runs:
+
+1. architecture discovery / verification
+2. repo health check
+3. repository census
+4. domain map
+5. Code Map extraction
+6. technical fact extraction
 
 Review:
 
 ```text
 atlas/architecture-discovery/human-review-checklist.md
 atlas/architecture-discovery/extraction-traversal-guide.md
-```
-
-Then build the semantic map foundation:
-
-```bash
-./atlas/scripts/run-code-map.sh
-```
-
-Review:
-
-```text
 atlas/map/
 atlas/facts/technical-facts.yaml
 ```
@@ -83,7 +82,7 @@ This should perform:
 
 ## Quality gate
 
-Before scaling to all domains, inspect:
+Before scaling to all domains or building downstream tools, inspect:
 
 - architecture verification documents
 - extraction traversal guide
@@ -121,6 +120,38 @@ When reviewing `atlas/map/`, check:
 - Are state transitions captured where workflows exist?
 - Are low-confidence areas marked `needs_review: true`?
 
+## Downstream tools
+
+After `atlas/map/`, `atlas/facts/`, and domain artifacts exist, run:
+
+```bash
+./atlas/scripts/run-downstream-suite.sh
+```
+
+Or run individual tools:
+
+```bash
+./atlas/scripts/run-framework-audit.sh
+./atlas/scripts/run-code-health.sh
+./atlas/scripts/run-visualizer-planner.sh
+./atlas/scripts/run-test-planner.sh
+./atlas/scripts/run-sample-data-planner.sh
+./atlas/scripts/run-context-pack.sh
+./atlas/scripts/run-project-agent-builder.sh
+```
+
+These create:
+
+```text
+atlas/audit/
+atlas/code-health/
+atlas/visualizer/
+atlas/test-planning/
+atlas/sample-data/
+atlas/context-packs/
+atlas/agents/
+```
+
 ## Maintenance lifecycle
 
 After the initial extraction, CodeAtlas becomes a living baseline.
@@ -139,9 +170,18 @@ Pull Request
 → Baseline update
 ```
 
+Maintenance commands:
+
+```bash
+./atlas/scripts/run-pr-impact.sh
+./atlas/scripts/run-release-governance.sh
+```
+
 See:
 
 ```text
 docs/MAINTENANCE_STRATEGY.md
 docs/CODE_MAP_FOUNDATION.md
+docs/YAML_CONTRACT.md
+docs/TOOLING_ROADMAP.md
 ```
