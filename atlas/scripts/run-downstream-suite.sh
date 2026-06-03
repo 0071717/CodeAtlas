@@ -15,6 +15,7 @@ python3 atlas/scripts/validate-artifacts.py --map
 ./atlas/scripts/run-test-planner.sh
 ./atlas/scripts/run-sample-data-planner.sh
 ./atlas/scripts/run-context-pack.sh
+./atlas/scripts/run-project-agent-builder.sh
 
 cat <<'EOF'
 Downstream suite complete. Review:
@@ -24,4 +25,5 @@ Downstream suite complete. Review:
 - atlas/test-planning/
 - atlas/sample-data/
 - atlas/context-packs/
+- atlas/agents/
 EOF
