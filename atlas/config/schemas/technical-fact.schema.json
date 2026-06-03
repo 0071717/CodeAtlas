@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CodeAtlasTechnicalFact",
+  "type": "object",
+  "required": ["id", "domain", "source_type", "statement", "confidence"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Stable fact ID, e.g. fact.knowledge.search.requires_set_access"
+    },
+    "domain": {
+      "type": "string"
+    },
+    "source_type": {
+      "type": "string",
+      "description": "validation, permission, service_condition, data_access, ui_state, error_condition, state_transition, side_effect, contract"
+    },
+    "statement": {
+      "type": "string"
+    },
+    "derived_from": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "confidence": {
+      "enum": ["high", "medium", "low"]
+    },
+    "needs_review": {
+      "type": "boolean"
+    },
+    "review_status": {
+      "enum": ["unreviewed", "accepted", "rejected", "needs_clarification", "superseded"]
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}
