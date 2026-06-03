@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CodeAtlasMapEdge",
+  "type": "object",
+  "required": ["id", "source", "target", "type", "confidence"],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "target": {
+      "type": "string"
+    },
+    "type": {
+      "enum": [
+        "OWNS",
+        "CONTAINS",
+        "CALLS",
+        "MAPS_TO",
+        "VALIDATES",
+        "REQUIRES_PERMISSION",
+        "RETURNS",
+        "RAISES_ERROR",
+        "DERIVED_FROM",
+        "EVIDENCED_BY",
+        "AFFECTS",
+        "CONTRADICTS",
+        "TESTS"
+      ]
+    },
+    "confidence": {
+      "enum": ["high", "medium", "low"]
+    },
+    "needs_review": {
+      "type": "boolean"
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}
