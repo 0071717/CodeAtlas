@@ -1,15 +1,19 @@
 You are acting as a senior codebase cartographer.
 
 Goal:
-Build a granular semantic YAML map of the application. This map is the foundation for later technical facts, technical rules, business rules, PR impact analysis, code health analysis, test gap analysis, and release governance.
+Build a granular semantic YAML map of the application. This map is the foundation for later technical facts, technical rules, business rules, PR impact analysis, code health analysis, test gap analysis, visualisation, sample data planning, and release governance.
 
 Do not create business rules yet.
 Do not create user stories yet.
 Do not summarize vaguely.
 
 Read:
+- docs/CODE_MAP_FOUNDATION.md
+- docs/YAML_CONTRACT.md
 - atlas/config/project.yaml
 - atlas/config/extraction-policy.md
+- atlas/config/schemas/map-node.schema.json
+- atlas/config/schemas/map-edge.schema.json
 - atlas/architecture-discovery/extraction-traversal-guide.md if present
 - atlas/global/frontend-inventory.yaml
 - atlas/global/backend-inventory.yaml
@@ -35,11 +39,43 @@ Write:
 Mapping principles:
 1. Build a semantic map, not an AST dump.
 2. Capture behaviourally meaningful structure.
-3. Use stable IDs where possible.
+3. Use stable hierarchical IDs from `docs/YAML_CONTRACT.md`.
 4. Every major map item should include evidence: repo, file, symbol, and line range where available.
 5. Do not include generated/vendor/cache folders unless relevant.
 6. Mark confidence as high, medium, or low.
 7. Mark uncertainty explicitly as `needs_review: true`.
+8. Prefer node/edge relationships that downstream graph tools can consume.
+9. Preserve existing IDs if rerunning.
+
+Recommended node shape:
+```yaml
+id: endpoint.knowledge.search
+kind: backend_endpoint
+domain: knowledge
+name: Search knowledge
+confidence: high
+needs_review: false
+evidence:
+  - type: code
+    repo: backend
+    file: app/routers/knowledge_router.py
+    symbol: search_knowledge
+    line_start: 42
+    line_end: 70
+```
+
+Recommended edge shape:
+```yaml
+id: edge.endpoint.knowledge.search.calls.service.knowledge.search_knowledge
+source: endpoint.knowledge.search
+target: service.knowledge.search_knowledge
+type: CALLS
+confidence: high
+evidence:
+  - type: code
+    file: app/routers/knowledge_router.py
+    symbol: search_knowledge
+```
 
 Backend map requirements:
 - map router files and registered routers
@@ -70,7 +106,7 @@ Frontend map requirements:
 - map forms and validation schemas
 - map API clients
 - map frontend API call → backend endpoint
-- map loading/error/success states
+- map loading/error/success/empty states
 - map permission/feature-flag checks
 - map tests where obvious
 
