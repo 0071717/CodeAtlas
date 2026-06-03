@@ -40,6 +40,8 @@ run_phase() {
 run_phase "03a-code-map-extraction.md" "03a-code-map-extraction.log"
 run_phase "03b-technical-facts.md" "03b-technical-facts.log"
 
+python3 "$ROOT_DIR/atlas/scripts/validate-artifacts.py" --map
+
 echo "Code Map extraction complete. Review:"
 echo "  atlas/map/"
 echo "  atlas/facts/technical-facts.yaml"
