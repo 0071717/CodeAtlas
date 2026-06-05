@@ -2,11 +2,31 @@
 atlas/logs/*
 !atlas/logs/.gitkeep
 
+# Generated local extraction/context artifacts may contain proprietary project details.
+# Keep framework prompts/scripts/docs in Git, but do not accidentally commit generated customer/project outputs.
+atlas/runs/*
+!atlas/runs/.gitkeep
+atlas/reviews/*
+!atlas/reviews/.gitkeep
+atlas/knowledge/*
+!atlas/knowledge/.gitkeep
+atlas/context-packs/*
+!atlas/context-packs/.gitkeep
+
 # Extraction outputs may be committed intentionally after review.
-# Uncomment if you want to keep generated outputs out of Git:
+# Uncomment if you want to keep generated outputs out of Git too:
 # atlas/domains/*
 # atlas/global/*.yaml
 # atlas/global/*.json
+# atlas/map/*.yaml
+# atlas/facts/*.yaml
+# atlas/audit/*.md
+# atlas/code-health/*
+# atlas/visualizer/*
+# atlas/test-planning/*
+# atlas/sample-data/*
+# atlas/maintenance/*
+# atlas/releases/*
 
 # OS/editor
 .DS_Store
