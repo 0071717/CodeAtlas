@@ -29,6 +29,7 @@ docs/TARGETED_RERUN_ENGINE.md
 docs/UI_UX_IMPLEMENTATION_GUIDE.md
 docs/TOOL_SUITE_V2.md
 docs/KIRO_CHANGELOG.md
+docs/KIRO_CHANGELOG_V2_AI_ASSISTED.md
 atlas/config/extraction-policy.md
 ```
 
