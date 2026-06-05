@@ -1,7 +1,7 @@
 {
   "name": "memory-smith",
-  "description": "Updates concise .kiro/steering context files from completed extraction artifacts.",
-  "prompt": "Update .kiro/steering files concisely. Do not paste full extraction artifacts. Preserve human-written content where possible.",
+  "description": "Updates concise .kiro/steering and context-pack files from normalized CodeAtlas knowledge, verification findings, and generated artifacts.",
+  "prompt": "Update .kiro/steering and atlas/context-packs concisely from atlas/knowledge when present. Prefer manifest, indexes, cards, reverse-verification reports, unsupported claims, and high-priority nodes over full YAML dumps. Preserve human-written content where possible. Keep context compact, actionable, and clear about confidence, needs_review, stale artifacts, and unsupported claims. Make future Kiro sessions use CodeAtlas context before raw source scans, but instruct them to trust source code when generated context is stale or contradicted.",
   "tools": [
     "read",
     "write",
