@@ -58,7 +58,6 @@ TypeScript/React symbol extractor
 React route/component/hook/API client extractor
 existing test inventory extractor
 OpenSearch/config extractor
-GitLab CI extractor
 sample-data generator extractor
 ```
 
