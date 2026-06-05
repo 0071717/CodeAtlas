@@ -2,6 +2,104 @@
 
 This changelog is written for Kiro, future AI agents, and humans maintaining CodeAtlas.
 
+## 2026-06-05 — V2 deterministic framework foundation
+
+### Summary
+
+CodeAtlas now has a V2 architecture and first deterministic tool suite. The framework direction is now compiler-like: source snapshot → deterministic indexes → graph/flow seeds → validation/drift reports → visualizer exports → AI enrichment only where useful.
+
+This update deliberately uses readable Python source. Do not reintroduce encoded/base64 payload launchers; Kiro and humans must be able to inspect and modify framework tools directly.
+
+### Added docs
+
+- `docs/FRAMEWORK_ARCHITECTURE_V2.md`
+  - Defines V2 planes: source/provenance, structural index, runtime entrypoint, semantic architecture, runtime context, graph/contracts, conditional flows, facts, rules, testing, knowledge, verification, tooling, and targeted reruns.
+
+- `docs/KIRO_ZIP_HANDOFF.md`
+  - Instructions for Kiro when CodeAtlas is supplied as a zip, copied workspace, or fresh clone.
+
+- `docs/KIRO_FRAMEWORK_IMPLEMENTATION_GUIDE.md`
+  - Tells Kiro how to build CodeAtlas in bounded deterministic tasks.
+
+- `docs/LAYER_BUILD_CONTRACT.md`
+  - Defines required inputs, outputs, schemas, validators, confidence policy, and rerun policy for each layer.
+
+- `docs/AST_EXTRACTION_STRATEGY.md`
+  - Explains how to use AST/parsers to produce reduced semantic indexes instead of raw AST dumps.
+
+- `docs/MULTI_REPO_MAPPING_STRATEGY.md`
+  - Defines multi-repo support for frontend, backend, shared contracts, OpenSearch/config, sample-data, test-support, and docs repos.
+
+- `docs/RUNTIME_CONTEXT_MAPPING.md`
+  - Defines middleware/dependency/exception/auth/logging/config mapping for runtime envelopes.
+
+- `docs/TESTING_ARCHAEOLOGY.md`
+  - Defines how to map existing weak tests, fixtures, mocks, and gaps before generating new tests.
+
+- `docs/VERIFICATION_AND_CHALLENGE_LAYER.md`
+  - Defines parse/link/source/contract/flow validation and adversarial claim review.
+
+- `docs/TARGETED_RERUN_ENGINE.md`
+  - Defines changed file → impacted node/flow/rule/test → targeted rerun strategy.
+
+- `docs/UI_UX_IMPLEMENTATION_GUIDE.md`
+  - Gives Kiro UI/UX rules, UI state checklist, and visualizer guidance.
+
+- `docs/TOOL_SUITE_V2.md`
+  - Documents the first deterministic suite commands and current limitations.
+
+### Added tools
+
+- `atlas/tools/codeatlas_v2_suite.py`
+  - Plain Python deterministic foundation suite.
+  - Provides `init`, `snapshot`, `index`, `graph`, `validate`, `drift-check`, `visualizer-export`, and `all` commands.
+  - Produces source snapshots, file hashes, file/symbol/endpoint/route/API-client/test indexes, graph seeds, API-flow seeds, validation reports, drift reports, and visualizer JSON.
+
+- `atlas/scripts/run-framework-v2-suite.sh`
+  - Simple runner for the V2 suite.
+
+### Added framework prompts
+
+- `atlas/prompts/framework/00-discovery-planner.md`
+- `atlas/prompts/framework/02-layer-implementation-worker.md`
+- `atlas/prompts/framework/04-validator-worker.md`
+- `atlas/prompts/framework/05-adversarial-reviewer.md`
+- `atlas/prompts/framework/07-ui-ux-worker.md`
+- `atlas/prompts/framework/08-test-archaeology-worker.md`
+
+### Important behaviour changes
+
+Kiro should prefer deterministic tools before AI interpretation.
+
+Kiro should run:
+
+```bash
+python3 atlas/tools/codeatlas_v2_suite.py all
+```
+
+or:
+
+```bash
+bash atlas/scripts/run-framework-v2-suite.sh
+```
+
+for the first V2 foundation pass.
+
+Kiro should no longer expect encoded launcher payloads. The V2 suite lives as readable Python source.
+
+CI/CD extraction is intentionally out of scope for now.
+
+### Recommended next tasks
+
+1. Refactor `codeatlas_v2_suite.py` into smaller modules under `atlas/tools/`.
+2. Add stronger Python AST extraction for Pydantic schemas, FastAPI dependencies, middleware, and exception handlers.
+3. Add stronger TypeScript/React extraction using a real TypeScript parser when available.
+4. Add branch-aware API request flow generation.
+5. Add UI state/interaction flow generation.
+6. Add OpenSearch/config extractor.
+7. Add fixture/mock/test archaeology extraction.
+8. Add richer visualizer exporter and then build the visualizer UI.
+
 ## 2026-06-05 — Knowledge context, reverse verification, and MR review framework
 
 ### Summary
