@@ -97,7 +97,6 @@ React routes
 forms
 actions/buttons
 API clients
-GitLab CI jobs
 sample-data generation commands
 webhooks
 CLI commands
@@ -110,7 +109,6 @@ atlas/index/endpoint-index.yaml
 atlas/index/runtime-entrypoint-index.yaml
 atlas/index/ui-action-index.yaml
 atlas/index/background-job-index.yaml
-atlas/index/ci-job-index.yaml
 ```
 
 ### 3. Semantic architecture plane
@@ -237,7 +235,6 @@ atlas/flows/data-flows.yaml
 atlas/flows/error-flows.yaml
 atlas/flows/permission-flows.yaml
 atlas/flows/state-transition-flows.yaml
-atlas/flows/ci-pipeline-flows.yaml
 atlas/flows/sample-data-flows.yaml
 ```
 
