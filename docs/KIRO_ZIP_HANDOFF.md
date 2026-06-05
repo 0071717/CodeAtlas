@@ -30,6 +30,7 @@ docs/UI_UX_IMPLEMENTATION_GUIDE.md
 docs/TOOL_SUITE_V2.md
 docs/KIRO_CHANGELOG.md
 docs/KIRO_CHANGELOG_V2_AI_ASSISTED.md
+docs/KIRO_CHANGELOG_V2_TOOLING.md
 atlas/config/extraction-policy.md
 ```
 
@@ -84,17 +85,12 @@ Source code conflicts with Atlas context
 → source code wins; mark Atlas stale or unsupported.
 ```
 
-## Preferred first commands
+## Preferred first command
 
 From the CodeAtlas root:
 
 ```bash
-python3 atlas/tools/codeatlas_v2_suite.py init
-python3 atlas/tools/codeatlas_v2_suite.py snapshot
-python3 atlas/tools/codeatlas_v2_suite.py index
-python3 atlas/tools/codeatlas_v2_suite.py graph
-python3 atlas/tools/codeatlas_v2_suite.py validate
-python3 atlas/tools/codeatlas_v2_suite.py visualizer-export
+python3 atlas/tools/codeatlas_v2_suite.py all
 ```
 
 Or use:
