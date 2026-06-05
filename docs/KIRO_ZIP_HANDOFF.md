@@ -72,6 +72,8 @@ From the CodeAtlas root:
 ```bash
 python3 atlas/tools/codeatlas_v2_suite.py init
 python3 atlas/tools/codeatlas_v2_suite.py snapshot
+python3 atlas/tools/codeatlas_v2_suite.py index
+python3 atlas/tools/codeatlas_v2_suite.py graph
 python3 atlas/tools/codeatlas_v2_suite.py validate
 python3 atlas/tools/codeatlas_v2_suite.py visualizer-export
 ```
