@@ -47,6 +47,13 @@ atlas/visualizer/node-detail-index.json
 atlas/visualizer/flow-cards.json
 ```
 
+### Added framework prompts
+
+```text
+atlas/prompts/framework/09-visualizer-builder.md
+atlas/prompts/framework/10-opensearch-config-worker.md
+```
+
 ### What Kiro should do next
 
 Run:
