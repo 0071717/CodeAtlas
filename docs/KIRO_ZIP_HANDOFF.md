@@ -18,15 +18,33 @@ docs/FRAMEWORK_ARCHITECTURE_V2.md
 docs/KIRO_FRAMEWORK_IMPLEMENTATION_GUIDE.md
 docs/LAYER_BUILD_CONTRACT.md
 docs/AST_EXTRACTION_STRATEGY.md
+docs/AI_ASSISTED_EXTRACTION_STRATEGY.md
+docs/REACT_UI_STACK_MAPPING.md
+docs/TASK_DECOMPOSITION_PLAYBOOK.md
 docs/MULTI_REPO_MAPPING_STRATEGY.md
 docs/RUNTIME_CONTEXT_MAPPING.md
 docs/TESTING_ARCHAEOLOGY.md
 docs/VERIFICATION_AND_CHALLENGE_LAYER.md
 docs/TARGETED_RERUN_ENGINE.md
 docs/UI_UX_IMPLEMENTATION_GUIDE.md
+docs/TOOL_SUITE_V2.md
 docs/KIRO_CHANGELOG.md
 atlas/config/extraction-policy.md
 ```
+
+## Current project assumptions
+
+The frontend may use:
+
+```text
+React
+TypeScript
+React Router DOM
+TanStack Query
+Material UI
+```
+
+When mapping UI, read `docs/REACT_UI_STACK_MAPPING.md` and prefer route/page/form/query/mutation/action/state slices instead of trying to map the whole UI at once.
 
 ## Your first job
 
@@ -86,6 +104,21 @@ bash atlas/scripts/run-framework-v2-suite.sh
 
 If a configured project repo is missing, write a clear finding instead of guessing paths.
 
+## After deterministic foundation
+
+Run AI-assisted extraction only on bounded slices:
+
+```text
+one frontend route/page cluster
+one form and TanStack Query mutation
+one backend endpoint/service path
+one existing test cluster
+one OpenSearch/config group
+one UI/API contract pair
+```
+
+Use `docs/TASK_DECOMPOSITION_PLAYBOOK.md` to break work down and `docs/AI_ASSISTED_EXTRACTION_STRATEGY.md` to keep AI extraction evidence-bound.
+
 ## What CodeAtlas V2 is trying to build
 
 ```text
@@ -108,15 +141,16 @@ source/provenance
 ## Kiro operating rules
 
 1. Prefer deterministic scripts and graph traversal before AI interpretation.
-2. Do not derive business rules directly from raw code if facts/rules can be derived from maps/flows.
-3. Preserve stable IDs.
-4. Every claim must have evidence or `needs_review: true`.
-5. Treat `confidence: low` or `needs_review: true` as non-authoritative.
-6. Do not treat frontend-only validation as backend enforcement.
-7. Do not treat backend-only endpoints as dead code without evidence.
-8. Do not modify application repos unless explicitly requested.
-9. Do not regenerate the entire corpus when targeted rerun is enough.
-10. If source code and Atlas disagree, trust source code and emit a stale/unsupported finding.
+2. Use AI-assisted extraction for bounded enrichment where parsers are not yet strong enough.
+3. Do not derive business rules directly from raw code if facts/rules can be derived from maps/flows.
+4. Preserve stable IDs.
+5. Every claim must have evidence or `needs_review: true`.
+6. Treat `confidence: low` or `needs_review: true` as non-authoritative.
+7. Do not treat frontend-only validation as backend enforcement.
+8. Do not treat backend-only endpoints as dead code without evidence.
+9. Do not modify application repos unless explicitly requested.
+10. Do not regenerate the entire corpus when targeted rerun is enough.
+11. If source code and Atlas disagree, trust source code and emit a stale/unsupported finding.
 
 ## When building new framework pieces
 
@@ -140,7 +174,7 @@ Write small composable scripts. Prefer tools that can be run locally without clo
 
 ## When building UI
 
-Read `docs/UI_UX_IMPLEMENTATION_GUIDE.md`. Build from fixture JSON produced by `visualizer-export` first. Do not make the UI parse random Markdown. The UI should consume compact JSON exports under `atlas/visualizer/` and `atlas/knowledge/graph/`.
+Read `docs/UI_UX_IMPLEMENTATION_GUIDE.md` and `docs/REACT_UI_STACK_MAPPING.md`. Build from fixture JSON produced by `visualizer-export` first. Do not make the UI parse random Markdown. The UI should consume compact JSON exports under `atlas/visualizer/` and `atlas/knowledge/graph/`.
 
 ## Done means
 
