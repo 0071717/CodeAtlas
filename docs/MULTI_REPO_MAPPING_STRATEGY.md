@@ -9,9 +9,9 @@ frontend repo
 backend repo
 shared contracts repo
 search/config repo
-pipeline/config repo
 sample-data repo
 test-support repo
+documentation repo
 ```
 
 ## Source coverage rule
@@ -33,7 +33,6 @@ react_frontend
 fastapi_backend
 shared_contracts
 opensearch_config
-pipeline_config
 sample_data_generation
 test_support
 documentation
@@ -47,9 +46,9 @@ Backend repos should map routers, endpoints, schemas, services, data access, mid
 
 Search/config repos should map index names, aliases, mappings, field types, analyzers, settings, templates, and migration scripts.
 
-Pipeline/config repos should map stages, jobs, variables, artifacts, test commands, release commands, and environment-specific settings.
-
 Sample-data repos should map factories, seed scripts, fixture scenarios, test users, roles, and scenario coverage.
+
+Documentation repos should be indexed and used only as secondary context. Source code remains authoritative for current behaviour.
 
 ## Cross-repo graph examples
 
@@ -58,8 +57,8 @@ frontend API client MAPS_TO backend endpoint
 backend data access READS search index
 backend data access WRITES search index
 backend test USES fixture
-pipeline job RUNS test suite
 sample-data scenario SUPPORTS UI flow
+shared contract DEFINES frontend/backend type
 ```
 
 ## Missing extractor rule
