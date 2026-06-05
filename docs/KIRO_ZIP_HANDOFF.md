@@ -20,6 +20,7 @@ docs/LAYER_BUILD_CONTRACT.md
 docs/AST_EXTRACTION_STRATEGY.md
 docs/AI_ASSISTED_EXTRACTION_STRATEGY.md
 docs/REACT_UI_STACK_MAPPING.md
+docs/REACT_STACK_INDEXER_TOOL.md
 docs/TASK_DECOMPOSITION_PLAYBOOK.md
 docs/MULTI_REPO_MAPPING_STRATEGY.md
 docs/RUNTIME_CONTEXT_MAPPING.md
@@ -30,6 +31,7 @@ docs/UI_UX_IMPLEMENTATION_GUIDE.md
 docs/TOOL_SUITE_V2.md
 docs/KIRO_CHANGELOG.md
 docs/KIRO_CHANGELOG_V2_AI_ASSISTED.md
+docs/KIRO_CHANGELOG_V2_CONTRACT_TESTING.md
 docs/KIRO_CHANGELOG_V2_TOOLING.md
 atlas/config/extraction-policy.md
 ```
@@ -85,18 +87,20 @@ Source code conflicts with Atlas context
 → source code wins; mark Atlas stale or unsupported.
 ```
 
-## Preferred first command
+## Preferred first commands
 
 From the CodeAtlas root:
 
 ```bash
 python3 atlas/tools/codeatlas_v2_suite.py all
+python3 atlas/tools/react_stack_candidate_indexer.py
 ```
 
 Or use:
 
 ```bash
 bash atlas/scripts/run-framework-v2-suite.sh
+bash atlas/scripts/run-react-stack-indexer.sh
 ```
 
 If a configured project repo is missing, write a clear finding instead of guessing paths.
