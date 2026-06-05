@@ -1,0 +1,1 @@
+python3 atlas/tools/react_stack_candidate_indexer.py
