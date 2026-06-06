@@ -41,11 +41,13 @@ Generated Atlas artifacts can contain target-project structure, behaviour, query
 - `atlas/tools/validate_artifacts.py`
 - `docs/GRAPHIFY_PATTERNS_ADOPTED.md`
 - stricter generated-artifact `.gitignore` rules
+- JSON-first fallback behaviour in `ngk_trace_regraph_exporter.py`
+- graph reporting and artifact validation wired into `codeatlas_v2_canonical.py all`
+- `atlas/scripts/README.md` legacy boundary notes
 
 ## Remaining gaps
 
 - legacy `.yaml` artifact names inside the V2 suite
-- graph report and artifact validation not yet wired into the canonical `all` command
 - candidate-only React extraction
 - missing FastAPI route materialisation
 - missing endpoint-scoped dependency/middleware envelopes
@@ -55,7 +57,7 @@ Generated Atlas artifacts can contain target-project structure, behaviour, query
 
 ## Recommended next cleanup commit
 
-1. Update `atlas/tools/codeatlas_v2_canonical.py` so `all` also runs `codeatlas_graph_report.py` and `validate_artifacts.py`.
-2. Update `ngk_trace_regraph_exporter.py` to prefer `.json` artifacts and fall back to legacy `.yaml`.
-3. Add a README under `atlas/scripts/` that clearly marks prompt-first scripts as legacy/experimental.
-4. Consider moving old prompt-first scripts to `atlas/legacy/scripts/` only after confirming no active docs depend on their current paths.
+1. Consider moving old prompt-first scripts to `atlas/legacy/scripts/` only after confirming no active docs depend on their current paths.
+2. Rename V2 suite writers from `.yaml` to `.json` once all downstream readers use the canonical JSON paths.
+3. Add `.codeatlasignore` scanner support if the built-in ignore rules are not enough.
+4. Add a SQLite read-model loader when `ngk ask/review/trace` needs fast structured queries.
