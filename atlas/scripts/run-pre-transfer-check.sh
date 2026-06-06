@@ -1,1 +1,1 @@
-python3 atlas/tools/codeatlas_preflight_doctor.py
+python3 atlas/tools/codeatlas_v2_canonical.py doctor
