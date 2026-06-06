@@ -1,0 +1,92 @@
+generated_by: CodeAtlas V2
+purpose: Semantic bindings for third-party and ecosystem-specific libraries.
+
+bindings:
+  ngk:
+    package_patterns:
+      - ngk
+    semantic_role: developer_cli
+    node_type: ecosystem.ngk_cli
+    description: Custom developer CLI used to trigger AI/project tools such as ask, review, and trace.
+
+  react_router_dom:
+    package_patterns:
+      - react-router-dom
+    semantic_role: frontend_routing
+    node_type: ecosystem.react_router
+    important_imports:
+      - Route
+      - Routes
+      - createBrowserRouter
+      - useNavigate
+      - useParams
+      - Navigate
+
+  tanstack_query:
+    package_patterns:
+      - '@tanstack/react-query'
+    semantic_role: server_state_query_mutation_cache
+    node_type: ecosystem.tanstack_query
+    important_imports:
+      - useQuery
+      - useMutation
+      - useInfiniteQuery
+      - useQueryClient
+
+  leaflet:
+    package_patterns:
+      - leaflet
+      - react-leaflet
+    semantic_role: geospatial_ui
+    node_type: ecosystem.geospatial_ui
+    important_imports:
+      - MapContainer
+      - TileLayer
+      - Marker
+      - Popup
+      - Polyline
+      - Polygon
+      - GeoJSON
+
+  regraph:
+    package_patterns:
+      - regraph
+      - '@regraph/*'
+      - '@cambridge-intelligence/regraph'
+    semantic_role: graph_visualization_ui
+    node_type: ecosystem.graph_ui
+    important_imports:
+      - Graph
+      - Chart
+      - TimeBar
+      - Combo
+
+  material_ui:
+    package_patterns:
+      - '@mui/material'
+      - '@mui/icons-material'
+    semantic_role: ui_component_library
+    node_type: ecosystem.ui_components
+    important_imports:
+      - Button
+      - TextField
+      - Dialog
+      - Alert
+      - Snackbar
+      - Table
+      - DataGrid
+
+  opensearch:
+    package_patterns:
+      - opensearch
+      - opensearch-py
+      - '@opensearch-project/opensearch'
+    semantic_role: search_data_access
+    node_type: ecosystem.search_data_access
+    important_calls:
+      - search
+      - index
+      - update
+      - delete
+      - bulk
+      - msearch
