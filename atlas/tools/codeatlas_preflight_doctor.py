@@ -25,11 +25,16 @@ REQUIRED_FILES = [
     "docs/NGK_TRACE_VISUAL_FLOW_EXPLORER.md",
     "docs/NGK_ECOSYSTEM_HARDENING_PLAN.md",
     "docs/TOOL_SUITE_V2.md",
+    "docs/GRAPHIFY_PATTERNS_ADOPTED.md",
+    "docs/REPO_CLEANUP_AUDIT.md",
     "atlas/config/project.yaml",
     "atlas/config/project.schema.json",
     "atlas/config/ecosystem-bindings.yaml",
     "atlas/tools/codeatlas_v2_suite.py",
+    "atlas/tools/codeatlas_v2_canonical.py",
     "atlas/tools/ngk_trace_regraph_exporter.py",
+    "atlas/tools/codeatlas_graph_report.py",
+    "atlas/tools/codeatlas_query.py",
     "atlas/scripts/run-framework-v2-suite.sh",
 ]
 
@@ -37,6 +42,7 @@ RECOMMENDED_FILES = [
     "docs/AI_ASSISTED_EXTRACTION_STRATEGY.md",
     "docs/REACT_STACK_MAPPING_GUIDE.md",
     "atlas/tools/react_stack_indexer.py",
+    "atlas/scripts/README.md",
 ]
 
 LEGACY_FIRST_RUN_COMMANDS = [
