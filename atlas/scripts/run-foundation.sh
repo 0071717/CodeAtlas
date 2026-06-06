@@ -1,29 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Builds the CodeAtlas foundation without running domain requirement extraction.
-# Outputs:
-# - atlas/architecture-discovery/
-# - atlas/global/
-# - atlas/map/
-# - atlas/facts/
+cat >&2 <<'EOF'
+run-foundation.sh is a legacy map-first CodeAtlas entrypoint.
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-cd "$ROOT_DIR"
+The deterministic V2 path is canonical. Use:
 
-./atlas/scripts/run-architecture-discovery.sh
-./atlas/scripts/run-global.sh
-./atlas/scripts/run-code-map.sh
+  python3 atlas/tools/codeatlas_v2_canonical.py doctor
+  python3 atlas/tools/codeatlas_v2_canonical.py all
 
-cat <<'EOF'
-CodeAtlas foundation complete. Review:
-- atlas/architecture-discovery/
-- atlas/global/
-- atlas/map/
-- atlas/facts/technical-facts.yaml
+The historical script content is preserved at:
 
-Next options:
-- ./atlas/scripts/run-pilot-auto.sh
-- ./atlas/scripts/run-auto.sh
-- ./atlas/scripts/run-downstream-suite.sh
+  atlas/legacy/scripts/run-foundation.sh
+
+Run that legacy script only if you explicitly want the old map-first workflow.
 EOF
+
+exit 2
