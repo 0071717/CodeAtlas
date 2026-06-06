@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Fully automated map-first mode:
+# LEGACY / EXPLORATORY ONLY.
+# Do not use this as the default first run for a new target project.
+# Use the deterministic V2 path first:
+#   python3 atlas/tools/codeatlas_v2_canonical.py doctor
+#   python3 atlas/tools/codeatlas_v2_canonical.py all
+#
+# This script preserves the older automated map-first prompt workflow:
 # 1. architecture discovery / verification
 # 2. repo health, repository census, domain map
 # 3. semantic Code Map + technical facts
