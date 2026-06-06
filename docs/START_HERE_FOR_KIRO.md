@@ -83,7 +83,8 @@ Before trusting them, run:
 ```bash
 python3 atlas/tools/codeatlas_v2_canonical.py doctor
 python3 atlas/tools/codeatlas_v2_canonical.py validate
-python3 atlas/tools/codeatlas_graph_report.py
+python3 atlas/tools/codeatlas_v2_canonical.py validate-artifacts
+python3 atlas/tools/codeatlas_v2_canonical.py graph-report
 ```
 
 Then inspect:
@@ -92,6 +93,7 @@ Then inspect:
 atlas/audit/preflight-doctor-report.json
 atlas/audit/artifact-json-promotion-report.json
 atlas/audit/v2-validation-report.json
+atlas/audit/artifact-validation-report.json
 atlas/visualizer/GRAPH_REPORT.md
 atlas/source/
 atlas/index/
@@ -150,8 +152,9 @@ Do not spend effort on high-level requirements generation until these foundation
 python3 atlas/tools/codeatlas_v2_canonical.py doctor
 python3 atlas/tools/codeatlas_v2_canonical.py all
 python3 atlas/tools/codeatlas_v2_canonical.py validate
+python3 atlas/tools/codeatlas_v2_canonical.py validate-artifacts
+python3 atlas/tools/codeatlas_v2_canonical.py graph-report
 python3 atlas/tools/codeatlas_v2_canonical.py drift-check
-python3 atlas/tools/codeatlas_graph_report.py
 python3 atlas/tools/codeatlas_query.py query "claims endpoint"
 python3 atlas/tools/codeatlas_query.py explain "POST /claims"
 python3 atlas/tools/codeatlas_query.py path "claims route" "claims endpoint"
