@@ -35,6 +35,7 @@ REQUIRED_FILES = [
     "atlas/tools/ngk_trace_regraph_exporter.py",
     "atlas/tools/codeatlas_graph_report.py",
     "atlas/tools/codeatlas_query.py",
+    "atlas/tools/validate_artifacts.py",
     "atlas/scripts/run-framework-v2-suite.sh",
 ]
 
@@ -98,8 +99,11 @@ def check_project_config(findings: list[dict]) -> None:
 
 def check_docs_consistency(findings: list[dict]) -> None:
     canonical = read(ROOT / "docs" / "CANONICAL_EXECUTION_PATH.md")
+    runner = read(ATLAS / "tools" / "codeatlas_v2_canonical.py")
     if "V2 deterministic path is canonical" not in canonical:
         findings.append({"severity": "error", "type": "canonical_doc_missing_decision", "path": "docs/CANONICAL_EXECUTION_PATH.md"})
+    if "graph-report" not in runner or "validate-artifacts" not in runner:
+        findings.append({"severity": "warning", "type": "canonical_runner_missing_graphify_helpers", "path": "atlas/tools/codeatlas_v2_canonical.py"})
     legacy = read(ROOT / "docs" / "LEGACY_AND_EXPERIMENTAL_PATHS.md")
     for cmd in LEGACY_FIRST_RUN_COMMANDS:
         if cmd not in legacy:
