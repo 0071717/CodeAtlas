@@ -46,6 +46,18 @@ bash atlas/scripts/run-framework-v2-suite.sh
 
 The placeholder trace may fail if no target project has an endpoint matching `POST /example`; that is acceptable. The goal is to confirm the tool exists and fails cleanly.
 
+`codeatlas_v2_canonical.py all` now runs the deterministic suite, promotes JSON-compatible legacy `.yaml` artifacts to `.json`, builds the local graph report, and runs artifact validation.
+
+Manual helper commands:
+
+```bash
+python3 atlas/tools/codeatlas_v2_canonical.py graph-report
+python3 atlas/tools/codeatlas_v2_canonical.py validate-artifacts
+python3 atlas/tools/codeatlas_query.py query "claims endpoint"
+python3 atlas/tools/codeatlas_query.py explain "POST /claims"
+python3 atlas/tools/codeatlas_query.py path "claims route" "claims endpoint"
+```
+
 ## Canonical artifacts
 
 The canonical source-of-truth artifacts are file-based and local:
