@@ -38,13 +38,17 @@ REQUIRED_FILES = [
     "atlas/tools/codeatlas_query.py",
     "atlas/tools/validate_artifacts.py",
     "atlas/scripts/run-framework-v2-suite.sh",
+    "atlas/scripts/run-pre-transfer-check.sh",
+    "atlas/scripts/README.md",
+    "atlas/legacy/README.md",
+    "atlas/legacy/scripts/README.md",
+    "docs/legacy/README.md",
 ]
 
 RECOMMENDED_FILES = [
     "docs/AI_ASSISTED_EXTRACTION_STRATEGY.md",
     "docs/REACT_STACK_MAPPING_GUIDE.md",
     "atlas/tools/react_stack_indexer.py",
-    "atlas/scripts/README.md",
 ]
 
 LEGACY_FIRST_RUN_COMMANDS = [
@@ -109,6 +113,9 @@ def check_docs_consistency(findings: list[dict]) -> None:
     for cmd in LEGACY_FIRST_RUN_COMMANDS:
         if cmd not in legacy:
             findings.append({"severity": "warning", "type": "legacy_doc_missing_command", "path": "docs/LEGACY_AND_EXPERIMENTAL_PATHS.md", "command": cmd})
+    cleanup = read(ROOT / "docs" / "REPO_CLEANUP_AUDIT.md")
+    if "atlas/legacy/scripts/run-auto.sh" not in cleanup:
+        findings.append({"severity": "warning", "type": "cleanup_audit_missing_archived_legacy_scripts", "path": "docs/REPO_CLEANUP_AUDIT.md"})
 
 
 def write_report(findings: list[dict]) -> None:
