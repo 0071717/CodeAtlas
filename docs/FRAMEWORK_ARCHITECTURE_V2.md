@@ -12,8 +12,12 @@ CodeAtlas should behave like a compiler for project knowledge:
 source repos
 → source/provenance snapshot
 → deterministic indexes
+→ payload/DSL reconstruction
 → semantic maps
+→ ecosystem bindings
+→ runtime context
 → relationship graphs
+→ explicit error flows
 → conditional flows
 → evidence-backed facts
 → rules and requirements
@@ -78,7 +82,40 @@ atlas/index/test-index.yaml
 atlas/index/config-index.yaml
 ```
 
-This layer should be mostly deterministic: Python AST, TypeScript compiler APIs, tree-sitter, grep, Git metadata, and config parsers.
+This layer should be deterministic-first: Python AST, TypeScript compiler APIs or tree-sitter, grep, Git metadata, and config parsers.
+
+### 1.5. Data payload and DSL reconstruction plane
+
+Purpose: reconstruct important payloads that plain call graphs cannot explain.
+
+Why this exists: AST structure can show `os_client.search(body=query)`, but a developer needs the shape of `query`, its filters, indexes, and dynamic inputs before AI can safely infer technical facts or business rules.
+
+Outputs:
+
+```text
+atlas/payloads/request-payloads.yaml
+atlas/payloads/response-payloads.yaml
+atlas/payloads/opensearch-query-dsl.yaml
+atlas/payloads/sql-queries.yaml
+atlas/payloads/generated-query-builders.yaml
+atlas/graph/payload-graph.yaml
+```
+
+Capture:
+
+```text
+OpenSearch index names and aliases
+query builder functions
+static JSON/query fragments
+dynamic query variables
+filter/range/match/terms clauses
+sort/aggregation clauses
+request and response shapes
+payload source evidence
+unresolved dynamic fields
+```
+
+Confidence rule: fully static payloads can be high confidence; composed payloads with unresolved variables are medium; runtime-only payloads are low and must include `needs_review: true`.
 
 ### 2. Runtime entrypoint plane
 
@@ -164,6 +201,43 @@ route
 → loading/error/success/empty UI states
 ```
 
+### 3.5. Ecosystem and third-party bindings plane
+
+Purpose: give deterministic semantic meaning to framework/library nodes that ASTs see only as imports or component calls.
+
+Why this exists: components like `MapContainer` or `Graph` are not generic UI widgets in your ecosystem. They should become typed semantic nodes such as geospatial UI, graph visualization UI, map marker layer, graph node-link visualization, or atlas visualizer surface.
+
+Inputs:
+
+```text
+atlas/config/ecosystem-bindings.yaml
+atlas/index/import-index.yaml
+atlas/index/component-index.yaml
+atlas/index/react-router-index.yaml
+atlas/index/tanstack-query-index.yaml
+atlas/index/material-ui-index.yaml
+```
+
+Outputs:
+
+```text
+atlas/bindings/ecosystem-bindings-resolved.yaml
+atlas/map/library-semantics-map.yaml
+atlas/graph/ecosystem-binding-graph.yaml
+```
+
+Recommended binding categories:
+
+```text
+react_router_dom: routing/navigation
+@tanstack/react-query: server-state/query/mutation/cache
+leaflet/react-leaflet: geospatial UI/map layers/markers/popups
+regraph: graph visualization/node-link analysis
+@mui/material: UI component library/forms/dialogs/tables/alerts
+opensearch client: search/query DSL/data access
+ngk: developer CLI/orchestration surface
+```
+
 ### 4. Cross-cutting runtime plane
 
 Purpose: capture behaviour that wraps or modifies normal flows.
@@ -196,6 +270,7 @@ atlas/graph/dependency-graph.yaml
 atlas/graph/ui-component-graph.yaml
 atlas/graph/ui-to-api-graph.yaml
 atlas/graph/contract-graph.yaml
+atlas/graph/payload-graph.yaml
 atlas/graph/test-coverage-graph.yaml
 ```
 
@@ -215,10 +290,45 @@ WRITES
 EMITS_EVENT
 USES_CONFIG
 USES_SCHEMA
+USES_PAYLOAD
+BUILDS_QUERY
+HANDLES_ERROR
+RENDERS_ERROR_STATE
 TESTS
 DERIVED_FROM
 EVIDENCED_BY
 IMPACTED_BY
+```
+
+### 5.5. Explicit error and exception flow plane
+
+Purpose: map failure paths before building full conditional flows.
+
+Why this exists: happy paths are easy; useful debugging requires deterministic knowledge of `try/except`, `raise`, `HTTPException`, global exception handlers, OpenSearch timeouts, frontend `.catch()`, TanStack `isError`, React ErrorBoundaries, and rendered error states.
+
+Outputs:
+
+```text
+atlas/errors/python-exception-map.yaml
+atlas/errors/frontend-error-map.yaml
+atlas/errors/error-boundary-map.yaml
+atlas/errors/opensearch-error-map.yaml
+atlas/flows/error-flows.yaml
+atlas/graph/error-flow-graph.yaml
+```
+
+Capture:
+
+```text
+raise sites
+try/except handlers
+HTTP status codes
+OpenSearch exception handling
+frontend catch blocks
+TanStack error states
+ErrorBoundary components
+error alerts/snackbars/dialogs
+fallback UI states
 ```
 
 ### 6. Conditional behaviour flow plane
@@ -238,13 +348,13 @@ atlas/flows/state-transition-flows.yaml
 atlas/flows/sample-data-flows.yaml
 ```
 
-API flows are conditional execution graphs: common path, branches, error exits, middleware envelope, side effects, external calls, and unknown/dynamic dispatch.
+API flows are conditional execution graphs: common path, branches, error exits, middleware envelope, side effects, external calls, OpenSearch DSL payloads, and unknown/dynamic dispatch.
 
-UI flows are state machines: route, render state, user action, form state, validation state, loading state, API result, success/error/empty state, navigation, toast, cache effects.
+UI flows are state machines: route, render state, user action, form state, validation state, loading state, API result, success/error/empty state, navigation, toast, cache effects, map state, and graph visualization state.
 
 ### 7. Fact plane
 
-Purpose: create objective, evidence-backed statements from maps, graphs, and flows.
+Purpose: create objective, evidence-backed statements from maps, graphs, flows, payloads, and error maps.
 
 Output:
 
@@ -274,7 +384,9 @@ Traceability ladder:
 ```text
 code evidence
 → map node
+→ payload/DSL node
 → graph edge
+→ error-flow edge
 → flow step
 → technical fact
 → technical rule
@@ -304,7 +416,7 @@ atlas/testing/playwright-plan.yaml
 atlas/testing/api-test-plan.yaml
 ```
 
-Existing poor tests are still useful. Map fixtures, mocks, weak assertions, historical edge cases, and missing coverage.
+Existing poor tests are still useful. Map fixtures, mocks, weak assertions, historical edge cases, and missing coverage. Downstream visualizers should color nodes by coverage status where possible.
 
 ### 10. Knowledge normalization plane
 
@@ -319,9 +431,12 @@ atlas/knowledge/edges.yaml
 atlas/knowledge/indexes/*.yaml
 atlas/knowledge/graph/*.json
 atlas/knowledge/cards/*.json
+atlas/knowledge/atlas.duckdb
+atlas/knowledge/atlas.sqlite
+atlas/knowledge/atlas.kuzu
 ```
 
-The knowledge layer should include flows and testing outputs, not just requirements outputs.
+The file-based YAML/JSON layer remains canonical and reviewable. Optional local databases are compiled read models for fast `ngk` queries, visualizers, and graph traversal.
 
 ### 11. Verification and challenge plane
 
@@ -334,6 +449,8 @@ atlas/audit/schema-validation.yaml
 atlas/audit/link-validation.yaml
 atlas/audit/source-verification.yaml
 atlas/audit/flow-verification.yaml
+atlas/audit/payload-verification.yaml
+atlas/audit/error-flow-verification.yaml
 atlas/audit/contract-mismatches.yaml
 atlas/audit/adversarial-review.yaml
 atlas/audit/unsupported-claims.yaml
@@ -341,7 +458,7 @@ atlas/audit/stale-nodes.yaml
 atlas/audit/targeted-rerun-plan.yaml
 ```
 
-Validators should include schema validation, ID/link validation, deterministic source checks, contract checks, flow checks, and bounded adversarial AI review.
+Validators should include schema validation, ID/link validation, deterministic source checks, payload reconstruction checks, contract checks, error-flow checks, full-flow checks, and bounded adversarial AI review.
 
 ### 12. Consumption and tool plane
 
@@ -350,6 +467,7 @@ Purpose: produce useful developer-facing tools.
 Tools should include:
 
 ```text
+ngk trace visual flow exporter
 debug navigator
 feature impact planner
 PR/MR impact analyzer
