@@ -2,7 +2,11 @@
 """Canonical CodeAtlas V2 runner.
 
 Runs the deterministic V2 suite, promotes JSON-compatible legacy `.yaml` outputs
-to canonical `.json` outputs, and exposes small report/validation helpers.
+to canonical `.json` outputs, and exposes report/validation helpers.
+
+The restricted-network path assumes MCP is unavailable. The canonical runner can
+therefore also build the local no-MCP memory layer: capability-gap audit plus
+SQLite read model.
 """
 from __future__ import annotations
 
@@ -19,6 +23,8 @@ SUITE = ATLAS / "tools" / "codeatlas_v2_suite.py"
 DOCTOR = ATLAS / "tools" / "codeatlas_preflight_doctor.py"
 GRAPH_REPORT = ATLAS / "tools" / "codeatlas_graph_report.py"
 ARTIFACT_VALIDATOR = ATLAS / "tools" / "validate_artifacts.py"
+CAPABILITY_AUDIT = ATLAS / "tools" / "codeatlas_capability_audit.py"
+SQLITE_READ_MODEL = ATLAS / "tools" / "codeatlas_sqlite_read_model.py"
 
 ARTIFACT_DIRS = [
     "source",
@@ -36,6 +42,7 @@ ARTIFACT_DIRS = [
     "knowledge",
     "audit",
     "change",
+    "context-packs",
     "visualizer",
 ]
 
@@ -88,9 +95,38 @@ def run_artifact_validation() -> int:
     return run_python(ARTIFACT_VALIDATOR, [str(ATLAS)])
 
 
+def run_no_mcp_memory() -> int:
+    """Build the local no-MCP memory layer from canonical artifacts."""
+    promote_yaml_json_to_json()
+    capability_code = run_python(CAPABILITY_AUDIT, [])
+    sqlite_code = run_python(SQLITE_READ_MODEL, [])
+    promote_yaml_json_to_json()
+    return capability_code or sqlite_code
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Canonical CodeAtlas V2 runner with JSON promotion")
-    parser.add_argument("cmd", choices=["doctor", "init", "snapshot", "index", "graph", "semantic-layers", "validate", "drift-check", "visualizer-export", "all", "promote-json", "graph-report", "validate-artifacts"])
+    parser.add_argument(
+        "cmd",
+        choices=[
+            "doctor",
+            "init",
+            "snapshot",
+            "index",
+            "graph",
+            "semantic-layers",
+            "validate",
+            "drift-check",
+            "visualizer-export",
+            "all",
+            "promote-json",
+            "graph-report",
+            "validate-artifacts",
+            "capability-audit",
+            "sqlite-read-model",
+            "no-mcp-memory",
+        ],
+    )
     args = parser.parse_args()
 
     if args.cmd == "doctor":
@@ -107,14 +143,27 @@ def main() -> int:
     if args.cmd == "validate-artifacts":
         promote_yaml_json_to_json()
         return run_artifact_validation()
+    if args.cmd == "capability-audit":
+        promote_yaml_json_to_json()
+        code = run_python(CAPABILITY_AUDIT, [])
+        promote_yaml_json_to_json()
+        return code
+    if args.cmd == "sqlite-read-model":
+        promote_yaml_json_to_json()
+        code = run_python(SQLITE_READ_MODEL, [])
+        promote_yaml_json_to_json()
+        return code
+    if args.cmd == "no-mcp-memory":
+        return run_no_mcp_memory()
 
     code = run_python(SUITE, [args.cmd])
     promoted = promote_yaml_json_to_json()
     print(f"json-promotion {len(promoted)}")
     if args.cmd == "all" and code == 0:
+        memory_code = run_no_mcp_memory()
         report_code = run_graph_report()
         validate_code = run_artifact_validation()
-        return report_code or validate_code
+        return memory_code or report_code or validate_code
     return code
 
 
