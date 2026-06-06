@@ -1,24 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# LEGACY / EXPLORATORY ONLY.
-# Do not use this as the default first run for a new target project.
-# Use the deterministic V2 path first:
-#   python3 atlas/tools/codeatlas_v2_canonical.py doctor
-#   python3 atlas/tools/codeatlas_v2_canonical.py all
-#
-# This script preserves the older automated map-first prompt workflow:
-# 1. architecture discovery / verification
-# 2. repo health, repository census, domain map
-# 3. semantic Code Map + technical facts
-# 4. pilot domain
-# 5. all remaining domains if pilot validates
+cat >&2 <<'EOF'
+run-auto.sh is a legacy prompt-first CodeAtlas entrypoint.
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-cd "$ROOT_DIR"
+The deterministic V2 path is canonical. Use:
 
-./atlas/scripts/run-architecture-discovery.sh
-./atlas/scripts/run-global.sh
-./atlas/scripts/run-code-map.sh
+  python3 atlas/tools/codeatlas_v2_canonical.py doctor
+  python3 atlas/tools/codeatlas_v2_canonical.py all
 
-python3 atlas/scripts/orchestrate_extraction.py --skip-global --auto-scale "$@"
+The historical script content is preserved at:
+
+  atlas/legacy/scripts/run-auto.sh
+
+Run that legacy script only if you explicitly want the old prompt-first workflow.
+EOF
+
+exit 2
