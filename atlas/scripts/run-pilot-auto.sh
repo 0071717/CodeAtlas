@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Safer first run:
-# 1. architecture discovery / verification
-# 2. repo health, repository census, domain map
-# 3. semantic Code Map + technical facts
-# 4. auto-selected pilot domain only
+cat >&2 <<'EOF'
+run-pilot-auto.sh is a legacy prompt-first CodeAtlas entrypoint.
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-cd "$ROOT_DIR"
+The deterministic V2 path is canonical. Use:
 
-./atlas/scripts/run-architecture-discovery.sh
-./atlas/scripts/run-global.sh
-./atlas/scripts/run-code-map.sh
+  python3 atlas/tools/codeatlas_v2_canonical.py doctor
+  python3 atlas/tools/codeatlas_v2_canonical.py all
 
-python3 atlas/scripts/orchestrate_extraction.py --skip-global "$@"
+The historical script content is preserved at:
+
+  atlas/legacy/scripts/run-pilot-auto.sh
+
+Run that legacy script only if you explicitly want the old prompt-first workflow.
+EOF
+
+exit 2
