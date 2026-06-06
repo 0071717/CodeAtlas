@@ -14,6 +14,13 @@ python3 atlas/tools/codeatlas_v2_canonical.py all
 
 The wrapper runs the deterministic suite and promotes JSON-compatible legacy `.yaml` outputs to canonical `.json` outputs.
 
+After the canonical wrapper, build the no-MCP local-memory layer:
+
+```bash
+python3 atlas/tools/codeatlas_capability_audit.py
+python3 atlas/tools/codeatlas_sqlite_read_model.py
+```
+
 You may also run:
 
 ```bash
@@ -34,11 +41,32 @@ Runner:
 bash atlas/scripts/run-framework-v2-suite.sh
 ```
 
+## No-MCP local-memory commands
+
+MCP is not part of the canonical runtime assumption. Use local tools instead:
+
+```bash
+python3 atlas/tools/codeatlas_capability_audit.py
+python3 atlas/tools/codeatlas_sqlite_read_model.py
+python3 atlas/tools/codeatlas_context_pack.py search "claims endpoint"
+python3 atlas/tools/codeatlas_context_pack.py build "why does claims search ignore archived records?"
+python3 atlas/tools/codeatlas_context_pack.py trace "POST /claims"
+python3 atlas/tools/codeatlas_context_pack.py impact backend/app/routes/claims.py
+```
+
+These commands adapt the useful parts of persistent code-memory systems to a filesystem-first workflow:
+
+```text
+deterministic artifacts
+→ capability-gap report
+→ local SQLite read model
+→ query/search/trace/impact context pack
+→ Kiro/ngk prompt context
+```
+
 ## Canonical foundation outputs
 
-The suite writes JSON-compatible legacy `.yaml` files first, then the canonical
-wrapper promotes those files to `.json` equivalents for new consumers. Existing
-Kiro prompts may still read `.yaml`; new tools should prefer `.json`.
+The suite writes JSON-compatible legacy `.yaml` files first, then the canonical wrapper promotes those files to `.json` equivalents for new consumers. Existing Kiro prompts may still read `.yaml`; new tools should prefer `.json`.
 
 Core outputs include:
 
@@ -58,6 +86,7 @@ atlas/index/runtime-entrypoint-index.{yaml,json}
 atlas/index/ui-action-index.{yaml,json}
 atlas/index/test-index.{yaml,json}
 atlas/index/config-index.{yaml,json}
+atlas/bindings/library-capabilities.json
 atlas/runtime/runtime-map.{yaml,json}
 atlas/payloads/api-contracts.{yaml,json}
 atlas/errors/error-flow-index.{yaml,json}
@@ -69,12 +98,18 @@ atlas/flows/ui-flows.{yaml,json}
 atlas/knowledge/nodes/normalized-nodes.{yaml,json}
 atlas/knowledge/graph/normalized-graph.{yaml,json}
 atlas/knowledge/indexes/id-index.{yaml,json}
+atlas/knowledge/atlas.sqlite
+atlas/knowledge/sqlite-compile-report.json
 atlas/audit/v2-validation-report.{yaml,json}
+atlas/audit/capability-gaps.json
+atlas/audit/unsupported-capabilities.json
 atlas/audit/artifact-json-promotion-report.json
 atlas/change/changed-files.{yaml,json}
 atlas/change/impacted-nodes.{yaml,json}
 atlas/change/impacted-edges.{yaml,json}
 atlas/change/targeted-rerun-plan.{yaml,json}
+atlas/context-packs/*.json
+atlas/context-packs/*.md
 atlas/visualizer/graph-data.json
 atlas/visualizer/cytoscape-elements.json
 atlas/visualizer/node-detail-index.json
@@ -122,6 +157,19 @@ frontend error/catch candidates
 library binding candidates for MUI, Leaflet, ReGraph, TanStack Query, React Router
 ```
 
+### Capability-gap audit
+
+```text
+supported library bindings by import root
+unknown import roots
+affected files
+risk level
+suggested binding stubs
+policy for what Atlas must not infer
+```
+
+Missing bindings do not fail the build. They become explicit `needs_review` capability gaps and are inserted into context packs when relevant.
+
 ### Graph, flow, and semantic seeds
 
 ```text
@@ -137,6 +185,37 @@ explicit and unresolved endpoint error-flow records
 evidence-backed technical fact seeds
 normalized knowledge graph/read-model files for downstream tools
 ```
+
+### SQLite local read model
+
+```text
+nodes table
+edges table
+facts table
+flows table
+capability_gaps table
+cards table
+optional cards_fts table when FTS5 is available
+```
+
+`atlas/knowledge/atlas.sqlite` is generated from canonical artifacts. It is a fast local read model for `ngk` and context-pack tools, not the source of truth.
+
+### Context packs
+
+```text
+question/query
+selected cards
+selected nodes
+selected edges
+selected facts
+selected flows
+evidence files/lines
+capability warnings
+known unknowns
+LLM instructions
+```
+
+Context packs are the no-MCP replacement for an agent repeatedly deciding which graph tools to call. They are written as JSON and Markdown under `atlas/context-packs/`.
 
 ### Drift/maintenance
 
@@ -155,6 +234,9 @@ The suite is plain Python source in:
 ```text
 atlas/tools/codeatlas_v2_suite.py
 atlas/tools/codeatlas_v2_canonical.py
+atlas/tools/codeatlas_capability_audit.py
+atlas/tools/codeatlas_sqlite_read_model.py
+atlas/tools/codeatlas_context_pack.py
 ```
 
 Do not reintroduce encoded/base64 payload launchers. Kiro and humans must be able to read, modify, review, and test the tools directly.
@@ -162,6 +244,14 @@ Do not reintroduce encoded/base64 payload launchers. Kiro and humans must be abl
 ## Current limitations
 
 The V2 suite is still a foundation, not the full final framework.
+
+Current no-MCP local memory is intentionally conservative:
+
+```text
+SQLite is compiled from existing Atlas artifacts; it does not replace better extractors.
+Context packs select evidence and graph neighborhoods; they do not prove unsupported framework semantics.
+Capability gaps are heuristic import-root reports; they need project-specific review for local absolute imports.
+```
 
 Future bounded tasks should add:
 
@@ -176,6 +266,7 @@ stronger OpenSearch/config extractor
 fixture/mock/test archaeology extractor
 contract checker
 symbol-level impact-to-targeted-rerun planner
-SQLite/DuckDB/Kuzu read models
+DuckDB/Kuzu read models
 visualizer UI
+project-specific library binding registry and extractor plugin system
 ```
