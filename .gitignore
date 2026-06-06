@@ -38,6 +38,7 @@ atlas/audit/*.yaml
 atlas/change/*.json
 atlas/change/*.yaml
 atlas/visualizer/**/*.json
+atlas/visualizer/**/*.html
 atlas/visualizer/**/*.md
 
 # Legacy/generated higher-level outputs
@@ -55,6 +56,9 @@ atlas/sample-data/
 atlas/maintenance/
 atlas/releases/
 atlas/architecture-discovery/
+
+# Preserve placeholder files if intentionally tracked.
+!atlas/**/.gitkeep
 
 # Local read models
 atlas/codeatlas.sqlite
