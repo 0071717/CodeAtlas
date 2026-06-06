@@ -6,7 +6,7 @@ Usage:
   python3 atlas/tools/ngk_trace_regraph_exporter.py "POST /claims" --out atlas/visualizer/ngk-trace/post-claims.regraph.json
 
 This is a file-based transformer for ngk CLI integration. It reads canonical
-Atlas JSON/YAML artifacts and emits an adapter-friendly ReGraph payload.
+Atlas JSON artifacts first and falls back to legacy JSON-compatible YAML files.
 """
 from __future__ import annotations
 
@@ -44,15 +44,23 @@ def slug(value: object) -> str:
     return re.sub(r"[./:-]+", "-", text).strip("-").lower() or "trace"
 
 
+def candidate_paths(path: Path) -> list[Path]:
+    if path.suffix == ".yaml":
+        return [path.with_suffix(".json"), path]
+    if path.suffix == ".json":
+        return [path, path.with_suffix(".yaml")]
+    return [path]
+
+
 def read(path: Path, default: Any) -> Any:
-    if not path.exists():
-        return default
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        # CodeAtlas V2 currently writes JSON-compatible YAML. If future YAML
-        # output is used, Kiro can add ruamel/PyYAML fallback here.
-        return default
+    for candidate in candidate_paths(path):
+        if not candidate.exists():
+            continue
+        try:
+            return json.loads(candidate.read_text(encoding="utf-8"))
+        except Exception:
+            return default
+    return default
 
 
 def write(path: Path, obj: Any) -> None:
@@ -62,10 +70,10 @@ def write(path: Path, obj: Any) -> None:
 
 def load_nodes() -> list[dict[str, Any]]:
     nodes = []
-    nodes.extend(read(ATLAS / "graph/nodes.yaml", {}).get("nodes", []))
+    nodes.extend(read(ATLAS / "graph/nodes.json", {}).get("nodes", []))
     for node_dir in [ATLAS / "knowledge" / "nodes"]:
         if node_dir.exists():
-            for path in sorted(node_dir.glob("*.yaml")):
+            for path in sorted({*node_dir.glob("*.json"), *node_dir.glob("*.yaml")}):
                 data = read(path, {})
                 for value in data.values():
                     if isinstance(value, list):
@@ -79,10 +87,10 @@ def load_nodes() -> list[dict[str, Any]]:
 
 def load_edges() -> list[dict[str, Any]]:
     edges = []
-    edges.extend(read(ATLAS / "graph/edges.yaml", {}).get("edges", []))
-    edges.extend(read(ATLAS / "knowledge/edges.yaml", {}).get("edges", []))
-    edges.extend(read(ATLAS / "graph/error-flow-graph.yaml", {}).get("edges", []))
-    edges.extend(read(ATLAS / "graph/payload-graph.yaml", {}).get("edges", []))
+    edges.extend(read(ATLAS / "graph/edges.json", {}).get("edges", []))
+    edges.extend(read(ATLAS / "knowledge/edges.json", {}).get("edges", []))
+    edges.extend(read(ATLAS / "graph/error-flow-graph.json", {}).get("edges", []))
+    edges.extend(read(ATLAS / "graph/payload-graph.json", {}).get("edges", []))
     seen = {}
     for edge in edges:
         if edge.get("source") and edge.get("target"):
@@ -93,9 +101,10 @@ def load_edges() -> list[dict[str, Any]]:
 def load_flows() -> list[dict[str, Any]]:
     flows = []
     for path, key in [
-        (ATLAS / "flows/api-request-flows.yaml", "api_request_flows"),
-        (ATLAS / "flows/ui-action-flows.yaml", "ui_action_flows"),
-        (ATLAS / "flows/error-flows.yaml", "error_flows"),
+        (ATLAS / "flows/api-request-flows.json", "api_request_flows"),
+        (ATLAS / "flows/ui-action-flows.json", "ui_action_flows"),
+        (ATLAS / "flows/error-flows.json", "error_flows"),
+        (ATLAS / "flows/ui-flows.json", "ui_flows"),
     ]:
         flows.extend(read(path, {}).get(key, []))
     return flows
@@ -104,10 +113,11 @@ def load_flows() -> list[dict[str, Any]]:
 def load_payloads() -> list[dict[str, Any]]:
     payloads = []
     for path, key in [
-        (ATLAS / "payloads/opensearch-query-dsl.yaml", "opensearch_queries"),
-        (ATLAS / "payloads/generated-query-builders.yaml", "query_builders"),
-        (ATLAS / "payloads/request-payloads.yaml", "request_payloads"),
-        (ATLAS / "payloads/response-payloads.yaml", "response_payloads"),
+        (ATLAS / "payloads/opensearch-query-dsl.json", "opensearch_queries"),
+        (ATLAS / "payloads/generated-query-builders.json", "query_builders"),
+        (ATLAS / "payloads/request-payloads.json", "request_payloads"),
+        (ATLAS / "payloads/response-payloads.json", "response_payloads"),
+        (ATLAS / "payloads/api-contracts.json", "api_contracts"),
     ]:
         payloads.extend(read(path, {}).get(key, []))
     return payloads
@@ -116,9 +126,9 @@ def load_payloads() -> list[dict[str, Any]]:
 def load_test_coverage() -> dict[str, str]:
     coverage: dict[str, str] = {}
     for path, key in [
-        (ATLAS / "testing/test-inventory.yaml", "tests"),
-        (ATLAS / "testing/coverage-gaps.yaml", "coverage_gaps"),
-        (ATLAS / "index/test-index.yaml", "tests"),
+        (ATLAS / "testing/test-inventory.json", "tests"),
+        (ATLAS / "testing/coverage-gaps.json", "coverage_gaps"),
+        (ATLAS / "index/test-index.json", "tests"),
     ]:
         data = read(path, {})
         for item in data.get(key, []):
@@ -151,7 +161,7 @@ def find_start(query: str, nodes: list[dict[str, Any]], flows: list[dict[str, An
         if method and str(trigger.get("method", "")).upper() != method:
             continue
         if path and path in str(trigger.get("path", "")):
-            return trigger.get("endpoint") or flow.get("entrypoint"), []
+            return trigger.get("endpoint") or flow.get("entrypoint") or flow.get("route"), []
     for node in nodes:
         if node_matches_query(node, method, path):
             return node.get("id"), []
@@ -173,8 +183,6 @@ def traverse(start: str, edges: list[dict[str, Any]], max_depth: int) -> tuple[s
         current, depth = frontier.pop(0)
         if depth >= max_depth:
             continue
-        # Include both downstream and upstream edges so UI callers can appear
-        # when the query starts at a backend endpoint.
         for edge in adjacency.get(current, []) + reverse.get(current, []):
             other = edge["target"] if edge["source"] == current else edge["source"]
             key = edge.get("id") or f"{edge['source']}->{edge['target']}"
@@ -219,7 +227,7 @@ def attach_payload_details(node: dict[str, Any], payloads: list[dict[str, Any]])
     details = {}
     for payload in payloads:
         refs = payload.get("applies_to", []) + payload.get("derived_from", []) + payload.get("target_nodes", [])
-        if node_id in refs or node_id == payload.get("id") or node_id == payload.get("data_access"):
+        if node_id in refs or node_id == payload.get("id") or node_id == payload.get("data_access") or node_id == payload.get("endpoint"):
             details.setdefault("payloads", []).append(payload)
     return details
 
@@ -231,9 +239,14 @@ def build_regraph(query: str, max_depth: int) -> dict[str, Any]:
     payloads = load_payloads()
     coverage = load_test_coverage()
     start, missing = find_start(query, nodes, flows)
+    warnings: list[str] = []
+    if not flows:
+        warnings.append("No flow artifacts were found; exporter is using raw graph traversal only.")
+    if not payloads:
+        warnings.append("No payload artifacts were found; OpenSearch/request/response panels may be empty.")
 
     if not start:
-        return {"items": {}, "links": {}, "metadata": {"query": query, "generated_at": now(), "status": "no_match", "missing_links": missing}}
+        return {"items": {}, "links": {}, "metadata": {"query": query, "generated_at": now(), "status": "no_match", "missing_links": missing, "warnings": warnings}}
 
     selected_node_ids, selected_edges = traverse(start, edges, max_depth=max_depth)
     node_by_id = {node["id"]: node for node in nodes if node.get("id")}
@@ -275,7 +288,9 @@ def build_regraph(query: str, max_depth: int) -> dict[str, Any]:
             "max_depth": max_depth,
             "status": "ok",
             "missing_links": missing,
+            "warnings": warnings,
             "format": "adapter_friendly_regraph_payload",
+            "artifact_policy": "prefer_json_fallback_yaml",
         },
     }
 
@@ -297,7 +312,8 @@ def main() -> None:
         f"Status: {payload['metadata']['status']}\n\n"
         f"Nodes: {len(payload['items'])}\n\n"
         f"Links: {len(payload['links'])}\n\n"
-        f"Missing links: {payload['metadata'].get('missing_links', [])}\n",
+        f"Missing links: {payload['metadata'].get('missing_links', [])}\n\n"
+        f"Warnings: {payload['metadata'].get('warnings', [])}\n",
         encoding="utf-8",
     )
     print(out)
