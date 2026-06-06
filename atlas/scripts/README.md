@@ -1,17 +1,30 @@
-# CodeAtlas Scripts
+# CodeAtlas Active Scripts
 
-Use deterministic V2 first:
+Active scripts should be small wrappers around deterministic V2 tools.
+
+## Canonical wrappers
+
+```bash
+bash atlas/scripts/run-pre-transfer-check.sh
+bash atlas/scripts/run-framework-v2-suite.sh
+```
+
+Equivalent direct commands:
 
 ```bash
 python3 atlas/tools/codeatlas_v2_canonical.py doctor
 python3 atlas/tools/codeatlas_v2_canonical.py all
-python3 atlas/tools/validate_artifacts.py atlas
-python3 atlas/tools/codeatlas_graph_report.py
 ```
 
-The `run-pre-transfer-check.sh` and `run-framework-v2-suite.sh` wrappers are convenience wrappers for the deterministic path.
+## Legacy wrappers
 
-Older prompt-first `run-*.sh` scripts are retained for reference and explicit opt-in use only. They are not the default path for a new target project.
+Older prompt-first / map-first orchestration scripts were moved to:
+
+```text
+atlas/legacy/scripts/
+```
+
+Do not reintroduce old prompt-first scripts here unless they are clearly marked as legacy and cannot be mistaken for the canonical path.
 
 ## Cleanup rule
 
