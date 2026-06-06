@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Canonical CodeAtlas V2 runner.
 
-Runs the existing deterministic V2 suite, then promotes JSON-compatible `.yaml`
-outputs to canonical `.json` outputs so downstream tools can stop depending on
-faux-YAML. This wrapper is intentionally small and safe for pre-transfer use.
+Runs the deterministic V2 suite, promotes JSON-compatible legacy `.yaml` outputs
+to canonical `.json` outputs, and exposes small report/validation helpers.
 """
 from __future__ import annotations
 
@@ -18,6 +17,8 @@ ROOT = Path.cwd()
 ATLAS = ROOT / "atlas"
 SUITE = ATLAS / "tools" / "codeatlas_v2_suite.py"
 DOCTOR = ATLAS / "tools" / "codeatlas_preflight_doctor.py"
+GRAPH_REPORT = ATLAS / "tools" / "codeatlas_graph_report.py"
+ARTIFACT_VALIDATOR = ATLAS / "tools" / "validate_artifacts.py"
 
 ARTIFACT_DIRS = [
     "source",
@@ -79,9 +80,17 @@ def promote_yaml_json_to_json() -> list[dict[str, Any]]:
     return promoted
 
 
+def run_graph_report() -> int:
+    return run_python(GRAPH_REPORT, [])
+
+
+def run_artifact_validation() -> int:
+    return run_python(ARTIFACT_VALIDATOR, [str(ATLAS)])
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Canonical CodeAtlas V2 runner with JSON promotion")
-    parser.add_argument("cmd", choices=["doctor", "init", "snapshot", "index", "graph", "semantic-layers", "validate", "drift-check", "visualizer-export", "all", "promote-json"])
+    parser.add_argument("cmd", choices=["doctor", "init", "snapshot", "index", "graph", "semantic-layers", "validate", "drift-check", "visualizer-export", "all", "promote-json", "graph-report", "validate-artifacts"])
     args = parser.parse_args()
 
     if args.cmd == "doctor":
@@ -92,10 +101,20 @@ def main() -> int:
         promoted = promote_yaml_json_to_json()
         print(f"promoted {len(promoted)} JSON-compatible YAML artifacts")
         return 0
+    if args.cmd == "graph-report":
+        promote_yaml_json_to_json()
+        return run_graph_report()
+    if args.cmd == "validate-artifacts":
+        promote_yaml_json_to_json()
+        return run_artifact_validation()
 
     code = run_python(SUITE, [args.cmd])
     promoted = promote_yaml_json_to_json()
     print(f"json-promotion {len(promoted)}")
+    if args.cmd == "all" and code == 0:
+        report_code = run_graph_report()
+        validate_code = run_artifact_validation()
+        return report_code or validate_code
     return code
 
 
