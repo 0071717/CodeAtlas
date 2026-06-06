@@ -11,8 +11,8 @@ Do not start a new target project with the old prompt-first extraction pipeline.
 The canonical first-run path is:
 
 ```bash
-python3 atlas/tools/codeatlas_preflight_doctor.py
-python3 atlas/tools/codeatlas_v2_suite.py all
+python3 atlas/tools/codeatlas_v2_canonical.py doctor
+python3 atlas/tools/codeatlas_v2_canonical.py all
 ```
 
 or:
@@ -79,14 +79,15 @@ These older workflows may still be useful for exploration, but deterministic V2 
 Before trusting them, run:
 
 ```bash
-python3 atlas/tools/codeatlas_preflight_doctor.py
-python3 atlas/tools/codeatlas_v2_suite.py validate
+python3 atlas/tools/codeatlas_v2_canonical.py doctor
+python3 atlas/tools/codeatlas_v2_canonical.py validate
 ```
 
 Then inspect:
 
 ```text
 atlas/audit/preflight-doctor-report.json
+atlas/audit/artifact-json-promotion-report.json
 atlas/audit/v2-validation-report.json
 atlas/source/
 atlas/index/
@@ -142,10 +143,10 @@ Do not spend effort on high-level requirements generation until these foundation
 ## Useful commands
 
 ```bash
-python3 atlas/tools/codeatlas_preflight_doctor.py
-python3 atlas/tools/codeatlas_v2_suite.py all
-python3 atlas/tools/codeatlas_v2_suite.py validate
-python3 atlas/tools/codeatlas_v2_suite.py drift-check
+python3 atlas/tools/codeatlas_v2_canonical.py doctor
+python3 atlas/tools/codeatlas_v2_canonical.py all
+python3 atlas/tools/codeatlas_v2_canonical.py validate
+python3 atlas/tools/codeatlas_v2_canonical.py drift-check
 python3 atlas/tools/ngk_trace_regraph_exporter.py "POST /claims"
 ```
 
