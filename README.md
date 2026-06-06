@@ -56,6 +56,19 @@ source repos
 
 The goal is not to make AI reread the whole application with different prompts. The goal is to generate stable file/symbol/route/endpoint/payload/flow/test artifacts that AI agents and tools can safely consume.
 
+## Graphify-inspired local graph tools
+
+CodeAtlas now adopts the useful parts of Graphify's query-first workflow without becoming a generic graph-memory clone:
+
+```bash
+python3 atlas/tools/codeatlas_graph_report.py
+python3 atlas/tools/codeatlas_query.py query "claims endpoint"
+python3 atlas/tools/codeatlas_query.py explain "POST /claims"
+python3 atlas/tools/codeatlas_query.py path "claims route" "claims endpoint"
+```
+
+These tools operate on CodeAtlas deterministic artifacts only. They provide a local query surface, hub/orphan/broken-edge reports, confidence summaries, suggested questions, and a portable `atlas/visualizer/graph.json` export. They do **not** replace typed CodeAtlas layers such as FastAPI materialised endpoints, React/TanStack packets, OpenSearch Query DSL packets, or `ngk trace` bundles.
+
 ## Read first
 
 For Kiro and future maintainers:
@@ -74,6 +87,8 @@ docs/TOOL_SUITE_V2.md
 docs/CHANGELOG.md
 docs/ROADMAP_AND_IMPLEMENTATION_PLAN.md
 docs/REPO_CLEANUP_POLICY.md
+docs/GRAPHIFY_PATTERNS_ADOPTED.md
+docs/REPO_CLEANUP_AUDIT.md
 ```
 
 For older/legacy concepts:
@@ -105,7 +120,7 @@ docs/MAINTENANCE_STRATEGY.md
 | `atlas/knowledge/` | Normalized nodes, edges, indexes, graph exports, cards, optional local DB read models |
 | `atlas/audit/` | Validation, reverse verification, unsupported claims, stale artifacts |
 | `atlas/change/` | Changed files/symbols, impacted nodes/flows/tests, targeted rerun plans |
-| `atlas/visualizer/` | ReGraph/Cytoscape/force-graph-ready exports |
+| `atlas/visualizer/` | ReGraph/Cytoscape/force-graph-ready exports and local graph reports |
 
 ## Important design rules
 
