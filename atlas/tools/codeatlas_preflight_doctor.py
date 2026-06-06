@@ -34,6 +34,7 @@ REQUIRED_FILES = [
     "atlas/tools/codeatlas_v2_canonical.py",
     "atlas/tools/ngk_trace_regraph_exporter.py",
     "atlas/tools/codeatlas_graph_report.py",
+    "atlas/tools/codeatlas_graph_html.py",
     "atlas/tools/codeatlas_query.py",
     "atlas/tools/validate_artifacts.py",
     "atlas/scripts/run-framework-v2-suite.sh",
