@@ -1,32 +1,65 @@
-# Logs and temporary output
-atlas/logs/*
-!atlas/logs/.gitkeep
-
 # Generated local extraction/context artifacts may contain proprietary project details.
-# Keep framework prompts/scripts/docs in Git, but do not accidentally commit generated customer/project outputs.
-atlas/runs/*
-!atlas/runs/.gitkeep
-atlas/reviews/*
-!atlas/reviews/.gitkeep
-atlas/knowledge/*
-!atlas/knowledge/.gitkeep
-atlas/context-packs/*
-!atlas/context-packs/.gitkeep
+# Keep framework prompts/scripts/docs/config templates in Git, but do not
+# accidentally commit generated customer/project outputs.
 
-# Extraction outputs may be committed intentionally after review.
-# Uncomment if you want to keep generated outputs out of Git too:
-# atlas/domains/*
-# atlas/global/*.yaml
-# atlas/global/*.json
-# atlas/map/*.yaml
-# atlas/facts/*.yaml
-# atlas/audit/*.md
-# atlas/code-health/*
-# atlas/visualizer/*
-# atlas/test-planning/*
-# atlas/sample-data/*
-# atlas/maintenance/*
-# atlas/releases/*
+# Runtime/log/cache output
+atlas/logs/
+atlas/runs/
+atlas/tools-output/
+atlas/plans/
+
+# Deterministic extraction artifacts
+atlas/source/*.json
+atlas/source/*.yaml
+atlas/index/*.json
+atlas/index/*.yaml
+atlas/payloads/*.json
+atlas/payloads/*.yaml
+atlas/bindings/*.json
+atlas/bindings/*.yaml
+atlas/runtime/*.json
+atlas/runtime/*.yaml
+atlas/graph/*.json
+atlas/graph/*.yaml
+atlas/errors/*.json
+atlas/errors/*.yaml
+atlas/flows/*.json
+atlas/flows/*.yaml
+atlas/facts/*.json
+atlas/facts/*.yaml
+atlas/rules/*.json
+atlas/rules/*.yaml
+atlas/requirements/*.json
+atlas/requirements/*.yaml
+atlas/testing/*.json
+atlas/testing/*.yaml
+atlas/audit/*.json
+atlas/audit/*.yaml
+atlas/change/*.json
+atlas/change/*.yaml
+atlas/visualizer/**/*.json
+atlas/visualizer/**/*.md
+
+# Legacy/generated higher-level outputs
+atlas/reviews/
+atlas/knowledge/
+atlas/context-packs/
+atlas/domains/
+atlas/global/*.yaml
+atlas/global/*.json
+atlas/map/*.yaml
+atlas/map/*.json
+atlas/code-health/
+atlas/test-planning/
+atlas/sample-data/
+atlas/maintenance/
+atlas/releases/
+atlas/architecture-discovery/
+
+# Local read models
+atlas/codeatlas.sqlite
+atlas/*.duckdb
+atlas/*.kuzu
 
 # OS/editor
 .DS_Store
