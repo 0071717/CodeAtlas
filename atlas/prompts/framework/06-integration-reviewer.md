@@ -7,7 +7,7 @@ Read:
 - task output summary
 - changed framework files
 - docs/LAYER_BUILD_CONTRACT.md
-- docs/KIRO_CHANGELOG.md
+- docs/CHANGELOG.md
 
 Check:
 1. The task satisfies its stated goal.

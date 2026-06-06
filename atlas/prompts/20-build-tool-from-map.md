@@ -5,7 +5,7 @@ Design and/or implement a downstream tool that consumes the CodeAtlas YAML artif
 
 Read:
 - docs/CODE_MAP_FOUNDATION.md
-- docs/TOOLING_ROADMAP.md
+- docs/ROADMAP_AND_IMPLEMENTATION_PLAN.md
 - docs/MAINTENANCE_STRATEGY.md
 - atlas/map/*.yaml
 - atlas/facts/technical-facts.yaml

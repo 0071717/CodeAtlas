@@ -1,85 +1,93 @@
 # CodeAtlas Pipeline
 
-This folder contains the machine-readable CodeAtlas pipeline.
+`atlas/` contains the machine-readable CodeAtlas framework: configuration,
+prompts, scripts, schemas, deterministic tooling, and generated artifact
+folders.
 
-`atlas/` is the detailed source of truth.
+## Canonical flow
 
-`.kiro/steering/` is compact working memory for Kiro and future AI-assisted development tasks.
+CodeAtlas is now **deterministic-first**. Start every new target project with the
+V2 runner, then add bounded Kiro/AI enrichment only after source/index/graph
+artifacts exist.
 
-## Foundation model
-
-CodeAtlas is now **architecture-first** and **map-first**.
-
-The preferred flow is:
-
-```text
-Raw code
-→ Architecture discovery
-→ Repo inventory
-→ Granular Code Map YAML
-→ Technical facts
-→ Technical rules
-→ Business rules
-→ User stories
-→ Epics
-→ High-Level Requirements
+```bash
+python3 atlas/tools/codeatlas_v2_canonical.py doctor
+python3 atlas/tools/codeatlas_v2_canonical.py all
 ```
 
-The granular YAML map under `atlas/map/` is the reusable foundation for many tools, not just requirements extraction.
+The V2 run creates conservative, evidence-backed artifacts in this order:
+
+```text
+source snapshot
+→ deterministic indexes
+→ graph and flows
+→ payload/error/fact/knowledge seed layers
+→ validation and visualizer exports
+```
+
+Legacy prompt-first scripts remain available for controlled exploration, but they
+are not the default first run.
 
 ## Important directories
 
 ```text
 atlas/
-  architecture-discovery/   # Kiro-derived architecture drafts, verified architecture, traversal guide
-  config/                   # project config, extraction policy, schemas
-  prompts/                  # bounded Kiro prompts for each phase
-  scripts/                  # automation entrypoints
-  global/                   # repo health, inventories, global domain map
-  map/                      # semantic codebase map
-  facts/                    # technical facts derived from the map
-  domains/                  # domain-level rules, stories, contradictions, review packs
-  releases/                 # release baselines and release impact reports
-  logs/                     # Kiro run logs
+  config/        # project config, extraction policy, schemas, ecosystem bindings
+  prompts/       # bounded prompts for legacy/enrichment phases
+  scripts/       # automation entrypoints
+  tools/         # deterministic V2 tooling and exporters
+  source/        # source manifests, file hashes, provenance snapshots
+  index/         # deterministic file/symbol/endpoint/route/API/test/config indexes
+  payloads/      # request/response contract seeds and unresolved payload work
+  runtime/       # middleware, dependency, exception-handler, auth/config maps
+  graph/         # nodes, edges, contract mappings, flow-ready relationships
+  errors/        # explicit and unresolved error-flow indexes
+  flows/         # API request and UI flow seeds
+  facts/         # evidence-backed technical facts
+  testing/       # test inventory and test-candidate artifacts
+  knowledge/     # normalized graph/read-model artifacts for downstream tools
+  audit/         # validation, preflight, promotion, and drift reports
+  change/        # changed files, impacted nodes/edges, targeted rerun plans
+  visualizer/    # graph and flow exports for ReGraph/Cytoscape-style tools
 ```
 
 ## Core commands
 
-Architecture discovery:
+Preflight and canonical all-in-one run:
 
 ```bash
-./atlas/scripts/run-architecture-discovery.sh
+python3 atlas/tools/codeatlas_v2_canonical.py doctor
+python3 atlas/tools/codeatlas_v2_canonical.py all
 ```
 
-Build semantic Code Map and technical facts:
+Individual deterministic stages:
 
 ```bash
-./atlas/scripts/run-code-map.sh
+python3 atlas/tools/codeatlas_v2_canonical.py snapshot
+python3 atlas/tools/codeatlas_v2_canonical.py index
+python3 atlas/tools/codeatlas_v2_canonical.py graph
+python3 atlas/tools/codeatlas_v2_canonical.py semantic-layers
+python3 atlas/tools/codeatlas_v2_canonical.py validate
+python3 atlas/tools/codeatlas_v2_canonical.py visualizer-export
 ```
 
-Pilot extraction:
+Compatibility wrappers:
 
 ```bash
-./atlas/scripts/run-pilot-auto.sh
+bash atlas/scripts/run-pre-transfer-check.sh
+bash atlas/scripts/run-framework-v2-suite.sh
 ```
 
-Full extraction:
+Legacy Kiro/prompt-first scripts such as `run-auto.sh`, `run-pilot-auto.sh`, and
+`run-foundation.sh` should be treated as enrichment or migration tools, not as
+the canonical starting path.
 
-```bash
-./atlas/scripts/run-auto.sh
-```
+## Evidence rules
 
-## Map-first rule
-
-Do not ask Kiro to derive business rules directly from raw source code where avoidable.
-
-Prefer:
-
-```text
-code map
-→ technical facts
-→ technical rules
-→ business rules
-```
-
-This gives better traceability, more stable diffs, and reusable artifacts for PR impact analysis, code health checks, release governance, refactor planning, and interactive UIs.
+1. Source code is authoritative.
+2. Deterministic indexes and graph artifacts come before AI-derived claims.
+3. Generated facts must carry evidence or `needs_review: true`.
+4. Missing payloads, error mappings, and links should be emitted as unresolved
+   findings instead of invented.
+5. If generated Atlas artifacts conflict with source code, mark Atlas stale and
+   rerun the affected deterministic stages.

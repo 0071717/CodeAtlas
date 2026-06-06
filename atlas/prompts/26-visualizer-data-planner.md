@@ -5,7 +5,7 @@ Design and/or generate graph-ready data for an interactive CodeAtlas UI that can
 
 Read:
 - docs/CODE_MAP_FOUNDATION.md
-- docs/TOOLING_ROADMAP.md
+- docs/ROADMAP_AND_IMPLEMENTATION_PLAN.md
 - atlas/map/*.yaml
 - atlas/facts/technical-facts.yaml
 - atlas/domains/*/*.yaml where available

@@ -81,7 +81,7 @@ def promote_yaml_json_to_json() -> list[dict[str, Any]]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Canonical CodeAtlas V2 runner with JSON promotion")
-    parser.add_argument("cmd", choices=["doctor", "init", "snapshot", "index", "graph", "validate", "drift-check", "visualizer-export", "all", "promote-json"])
+    parser.add_argument("cmd", choices=["doctor", "init", "snapshot", "index", "graph", "semantic-layers", "validate", "drift-check", "visualizer-export", "all", "promote-json"])
     args = parser.parse_args()
 
     if args.cmd == "doctor":
