@@ -4,61 +4,27 @@ This guide describes the deterministic tools added for CodeAtlas V2.
 
 The suite is intentionally readable, dependency-light, and fast. It creates the foundation Kiro can inspect and improve without repeatedly asking an AI to rescan the whole project.
 
-## Current foundation outputs
+## Canonical command
 
-```text
-atlas/source/snapshot.yaml
-atlas/source/file-hashes.yaml
-atlas/index/file-index.yaml
-atlas/index/symbol-index.yaml
-atlas/index/import-index.yaml
-atlas/index/endpoint-index.yaml
-atlas/index/route-index.yaml
-atlas/index/component-index.yaml
-atlas/index/hook-index.yaml
-atlas/index/api-client-index.yaml
-atlas/index/schema-index.yaml
-atlas/index/service-index.yaml
-atlas/index/data-access-index.yaml
-atlas/index/runtime-entrypoint-index.yaml
-atlas/index/ui-action-index.yaml
-atlas/index/test-index.yaml
-atlas/index/config-index.yaml
-atlas/runtime/runtime-map.yaml
-atlas/testing/test-inventory.yaml
-atlas/graph/nodes.yaml
-atlas/graph/edges.yaml
-atlas/flows/api-request-flows.yaml
-atlas/flows/ui-flows.yaml
-atlas/audit/v2-validation-report.yaml
-atlas/change/changed-files.yaml
-atlas/change/impacted-nodes.yaml
-atlas/change/impacted-edges.yaml
-atlas/change/targeted-rerun-plan.yaml
-atlas/visualizer/graph-data.json
-atlas/visualizer/cytoscape-elements.json
-atlas/visualizer/node-detail-index.json
-atlas/visualizer/flow-cards.json
-```
-
-## Commands
-
-Run all foundation steps:
+Use the canonical wrapper:
 
 ```bash
-python3 atlas/tools/codeatlas_v2_suite.py all
+python3 atlas/tools/codeatlas_v2_canonical.py all
 ```
 
-Or run individual steps:
+The wrapper runs the deterministic suite and promotes JSON-compatible legacy `.yaml` outputs to canonical `.json` outputs.
+
+You may also run:
 
 ```bash
-python3 atlas/tools/codeatlas_v2_suite.py init
-python3 atlas/tools/codeatlas_v2_suite.py snapshot
-python3 atlas/tools/codeatlas_v2_suite.py index
-python3 atlas/tools/codeatlas_v2_suite.py graph
-python3 atlas/tools/codeatlas_v2_suite.py validate
-python3 atlas/tools/codeatlas_v2_suite.py drift-check
-python3 atlas/tools/codeatlas_v2_suite.py visualizer-export
+python3 atlas/tools/codeatlas_v2_canonical.py doctor
+python3 atlas/tools/codeatlas_v2_canonical.py snapshot
+python3 atlas/tools/codeatlas_v2_canonical.py index
+python3 atlas/tools/codeatlas_v2_canonical.py graph
+python3 atlas/tools/codeatlas_v2_canonical.py validate
+python3 atlas/tools/codeatlas_v2_canonical.py drift-check
+python3 atlas/tools/codeatlas_v2_canonical.py visualizer-export
+python3 atlas/tools/codeatlas_v2_canonical.py promote-json
 ```
 
 Runner:
@@ -67,15 +33,53 @@ Runner:
 bash atlas/scripts/run-framework-v2-suite.sh
 ```
 
-## What the suite now captures
+## Canonical foundation outputs
+
+New deterministic artifacts should be consumed as `.json` files:
+
+```text
+atlas/source/snapshot.json
+atlas/source/file-hashes.json
+atlas/index/file-index.json
+atlas/index/symbol-index.json
+atlas/index/import-index.json
+atlas/index/endpoint-index.json
+atlas/index/route-index.json
+atlas/index/api-client-index.json
+atlas/index/schema-index.json
+atlas/index/ui-action-index.json
+atlas/index/test-index.json
+atlas/runtime/dependency-map.json
+atlas/runtime/middleware-map.json
+atlas/runtime/router-inclusion-map.json
+atlas/errors/python-exception-map.json
+atlas/errors/frontend-error-map.json
+atlas/payloads/opensearch-query-dsl.json
+atlas/bindings/ecosystem-bindings-resolved.json
+atlas/graph/nodes.json
+atlas/graph/edges.json
+atlas/graph/payload-graph.json
+atlas/graph/error-flow-graph.json
+atlas/flows/api-request-flows.json
+atlas/flows/ui-action-flows.json
+atlas/flows/error-flows.json
+atlas/audit/v2-validation-report.json
+atlas/audit/artifact-json-promotion-report.json
+atlas/change/changed-files.json
+atlas/visualizer/graph-data.json
+atlas/visualizer/cytoscape-elements.json
+```
+
+Legacy `.yaml` JSON-compatible files may still exist for backward compatibility. New tools should prefer `.json` and only fall back to `.yaml` when needed.
+
+## What the suite captures
 
 ### Snapshot
 
 ```text
 repo id/role/path/framework/language
 repo exists flag
-git branch and commit when available
-file path/language/classification/analysis depth
+file path/language/classification
 file line count, size, and sha256 hash
 missing repo/file read findings
 ```
@@ -84,30 +88,29 @@ missing repo/file read findings
 
 ```text
 functions/classes
-signatures, signature hashes, body hashes
 line ranges
 calls
 imports
-branch summaries from if-statements
-raise summaries
 FastAPI-style route decorator candidates
+Depends(...) candidates
+APIRouter/FastAPI/include_router candidates
+middleware candidates
+exception/raise/try-except candidates
 Pydantic/BaseModel schema candidates
-service/data-access candidates
-middleware/dependency/exception handler candidates
-pytest/test function candidates
+OpenSearch search/msearch payload candidates where statically visible
+test file candidates
 ```
 
 ### TypeScript/React indexing
 
 ```text
 symbol candidates
-component candidates
-hook candidates
 React route candidates
 API client call candidates
-UI action candidates such as onClick/onSubmit/onChange
-test file/function candidates
-imports
+TanStack Query candidate packets
+UI action candidates such as onClick/onSubmit
+frontend error/catch candidates
+library binding candidates for MUI, Leaflet, ReGraph, TanStack Query, React Router
 ```
 
 ### Graph/flow seeds
@@ -115,10 +118,12 @@ imports
 ```text
 node export
 IMPLEMENTS edges
-CALLS edges where symbol names match
 MAPS_TO edges where frontend API method/path matches backend endpoint method/path
-seed API request flows with runtime envelope, branches, and error exits
-seed UI flows with route/action/API-call states where available
+BUILDS_QUERY edges for OpenSearch payload packets
+RAISES_ERROR/HANDLES_ERROR edges for exception candidates
+seed API request flows
+seed UI action flows
+seed error flows
 ```
 
 ### Drift/maintenance
@@ -127,19 +132,9 @@ seed UI flows with route/action/API-call states where available
 changed files
 added files
 removed files
-impacted nodes
-impacted edges
-targeted rerun recommendation
 ```
 
-### Visualization
-
-```text
-graph-data.json
-cytoscape-elements.json
-node-detail-index.json
-flow-cards.json
-```
+Symbol-level drift is still a future hardening task.
 
 ## Important implementation note
 
@@ -147,30 +142,28 @@ The suite is plain Python source in:
 
 ```text
 atlas/tools/codeatlas_v2_suite.py
+atlas/tools/codeatlas_v2_canonical.py
 ```
 
-Do not reintroduce encoded/base64 payload launchers. Kiro and humans must be able to read, modify, review, and test the tool directly.
+Do not reintroduce encoded/base64 payload launchers. Kiro and humans must be able to read, modify, review, and test the tools directly.
 
 ## Current limitations
 
-The V2 suite is still a foundation, not the full final framework. It uses Python standard library plus optional PyYAML if available.
+The V2 suite is still a foundation, not the full final framework.
 
 Future bounded tasks should add:
 
 ```text
 module refactor for maintainability
-stronger TypeScript/React parser
+real TypeScript AST / ts-morph extraction
 stronger Pydantic schema extractor
-stronger FastAPI router-prefix/dependency/middleware extractor
+stronger FastAPI router-prefix/dependency/middleware materialisation
 branch-aware API flow builder with condition paths
 UI state/interaction flow builder
-OpenSearch/config extractor
+stronger OpenSearch/config extractor
 fixture/mock/test archaeology extractor
 contract checker
-impact-to-targeted-rerun planner
+symbol-level impact-to-targeted-rerun planner
+SQLite/DuckDB/Kuzu read models
 visualizer UI
 ```
-
-## Output format
-
-The files use JSON syntax with `.yaml` extensions for now. JSON is valid YAML and easier to parse with Python standard library. A later task may switch to a YAML library if desired, but deterministic parsability matters more than formatting.
