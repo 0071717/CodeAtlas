@@ -52,6 +52,83 @@ layer:
   rerun_policy: rerun when impacted index/map nodes change
 ```
 
+## Fractional layer contracts
+
+Fractional layers exist when the normal pipeline has an information gap that would otherwise force AI to guess.
+
+### Layer 1.5 — Data payload and DSL reconstruction
+
+Purpose: reconstruct request/response/search/query payloads before semantic inference.
+
+Required outputs:
+
+```text
+atlas/payloads/request-payloads.yaml
+atlas/payloads/response-payloads.yaml
+atlas/payloads/opensearch-query-dsl.yaml
+atlas/payloads/sql-queries.yaml
+atlas/payloads/generated-query-builders.yaml
+atlas/graph/payload-graph.yaml
+```
+
+Acceptance criteria:
+
+```text
+query builder functions are linked to data-access calls
+static query fragments are captured
+dynamic fragments are marked unresolved rather than invented
+OpenSearch nodes expose exact or partial Query DSL where possible
+```
+
+### Layer 3.5 — Ecosystem and third-party bindings
+
+Purpose: map imported libraries/framework components to semantic roles used by downstream tools.
+
+Required inputs and outputs:
+
+```text
+input:  atlas/config/ecosystem-bindings.yaml
+input:  atlas/index/import-index.yaml
+input:  atlas/index/component-index.yaml
+output: atlas/bindings/ecosystem-bindings-resolved.yaml
+output: atlas/map/library-semantics-map.yaml
+output: atlas/graph/ecosystem-binding-graph.yaml
+```
+
+Acceptance criteria:
+
+```text
+Leaflet/react-leaflet components can become geospatial UI nodes
+ReGraph components can become graph visualization UI nodes
+TanStack Query hooks can become server-state/query/mutation nodes
+OpenSearch clients can become search/data-access nodes
+unknown imports are emitted as findings, not ignored
+```
+
+### Layer 5.5 — Explicit error and exception flows
+
+Purpose: map failure paths before full conditional flow generation.
+
+Required outputs:
+
+```text
+atlas/errors/python-exception-map.yaml
+atlas/errors/frontend-error-map.yaml
+atlas/errors/error-boundary-map.yaml
+atlas/errors/opensearch-error-map.yaml
+atlas/flows/error-flows.yaml
+atlas/graph/error-flow-graph.yaml
+```
+
+Acceptance criteria:
+
+```text
+Python raise sites and try/except handlers are indexed
+FastAPI HTTPException status codes are captured where static
+frontend catch blocks, ErrorBoundaries, and TanStack error states are indexed
+error branches can be rendered by downstream visualizers
+```
+
 ## Source fallback rule
 
 Higher layers should not freely rescan the entire application.
@@ -116,6 +193,9 @@ imports
 routes/endpoints
 schemas
 basic calls
+payload/DSL reconstruction where static
+ecosystem binding resolution
+raise/except/catch/ErrorBoundary discovery
 test files
 YAML/JSON parse checks
 link checks
