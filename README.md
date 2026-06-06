@@ -20,8 +20,8 @@ The older prompt-first Kiro extraction pipeline remains in the repository as leg
 Start with:
 
 ```bash
-python3 atlas/tools/codeatlas_preflight_doctor.py
-python3 atlas/tools/codeatlas_v2_suite.py all
+python3 atlas/tools/codeatlas_v2_canonical.py doctor
+python3 atlas/tools/codeatlas_v2_canonical.py all
 ```
 
 or:
@@ -164,13 +164,14 @@ Do not treat upper requirement layers as equally mature as source/index/graph la
 Before copying CodeAtlas into a restricted Kiro network:
 
 ```bash
-python3 atlas/tools/codeatlas_preflight_doctor.py
+python3 atlas/tools/codeatlas_v2_canonical.py doctor
 ```
 
 Review:
 
 ```text
 atlas/audit/preflight-doctor-report.json
+atlas/audit/artifact-json-promotion-report.json
 ```
 
 See:
