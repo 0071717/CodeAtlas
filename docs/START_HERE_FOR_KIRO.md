@@ -38,6 +38,8 @@ docs/KIRO_FRAMEWORK_IMPLEMENTATION_GUIDE.md
 docs/NGK_ECOSYSTEM_HARDENING_PLAN.md
 docs/NGK_TRACE_VISUAL_FLOW_EXPLORER.md
 docs/TOOL_SUITE_V2.md
+docs/GRAPHIFY_PATTERNS_ADOPTED.md
+docs/REPO_CLEANUP_AUDIT.md
 atlas/config/project.yaml
 atlas/config/project.schema.json
 atlas/config/ecosystem-bindings.yaml
@@ -81,6 +83,7 @@ Before trusting them, run:
 ```bash
 python3 atlas/tools/codeatlas_v2_canonical.py doctor
 python3 atlas/tools/codeatlas_v2_canonical.py validate
+python3 atlas/tools/codeatlas_graph_report.py
 ```
 
 Then inspect:
@@ -89,6 +92,7 @@ Then inspect:
 atlas/audit/preflight-doctor-report.json
 atlas/audit/artifact-json-promotion-report.json
 atlas/audit/v2-validation-report.json
+atlas/visualizer/GRAPH_REPORT.md
 atlas/source/
 atlas/index/
 atlas/graph/
@@ -147,6 +151,10 @@ python3 atlas/tools/codeatlas_v2_canonical.py doctor
 python3 atlas/tools/codeatlas_v2_canonical.py all
 python3 atlas/tools/codeatlas_v2_canonical.py validate
 python3 atlas/tools/codeatlas_v2_canonical.py drift-check
+python3 atlas/tools/codeatlas_graph_report.py
+python3 atlas/tools/codeatlas_query.py query "claims endpoint"
+python3 atlas/tools/codeatlas_query.py explain "POST /claims"
+python3 atlas/tools/codeatlas_query.py path "claims route" "claims endpoint"
 python3 atlas/tools/ngk_trace_regraph_exporter.py "POST /claims"
 ```
 
