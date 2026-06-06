@@ -1,6 +1,6 @@
 # Repository Cleanup Audit
 
-The canonical execution path is deterministic V2. The repository has already moved away from the old prompt-first default, but there are still legacy references to keep clearly separated from deterministic extraction.
+The canonical execution path is deterministic V2. The repository has moved away from the old prompt-first default, but legacy references are preserved where they contain process knowledge.
 
 ## Canonical keep
 
@@ -21,9 +21,23 @@ Keep these prominent:
 
 ## Legacy / experimental
 
-Treat these as legacy or future-oriented unless the user explicitly asks for them:
+The first-run prompt/map wrappers are no longer allowed to silently run the old pipeline from the active scripts folder.
 
-- old prompt-first `atlas/scripts/run-*.sh` wrappers that call Kiro phases directly
+Archived historical copies:
+
+- `atlas/legacy/scripts/run-auto.sh`
+- `atlas/legacy/scripts/run-pilot-auto.sh`
+- `atlas/legacy/scripts/run-foundation.sh`
+
+Safe deprecation wrappers remain at the old active paths so accidental use fails with a clear message:
+
+- `atlas/scripts/run-auto.sh`
+- `atlas/scripts/run-pilot-auto.sh`
+- `atlas/scripts/run-foundation.sh`
+
+Still retained as legacy/future-oriented unless the user explicitly asks for them:
+
+- older prompt-first `atlas/scripts/run-*.sh` wrappers that call Kiro phases directly
 - `atlas/scripts/orchestrate_extraction.py`
 - broad prompt suites for facts, rules, stories, epics, HLRs, release governance, and review packs
 - old docs that position requirements generation as the default first objective
@@ -32,9 +46,9 @@ Do not delete them blindly. They may contain useful process knowledge. The clean
 
 ## Generated-output safety
 
-Generated Atlas artifacts can contain target-project structure, behaviour, query details, and test information. `.gitignore` now ignores generated outputs under deterministic artifact folders, visualizer outputs, audit/change outputs, higher-level legacy outputs, and local read models.
+Generated Atlas artifacts can contain target-project structure, behaviour, query details, and test information. `.gitignore` ignores generated outputs under deterministic artifact folders, visualizer outputs, audit/change outputs, higher-level legacy outputs, and local read models.
 
-## Added in this cleanup pass
+## Added in cleanup passes
 
 - `atlas/tools/codeatlas_graph_report.py`
 - `atlas/tools/codeatlas_query.py`
@@ -44,6 +58,9 @@ Generated Atlas artifacts can contain target-project structure, behaviour, query
 - JSON-first fallback behaviour in `ngk_trace_regraph_exporter.py`
 - graph reporting and artifact validation wired into `codeatlas_v2_canonical.py all`
 - `atlas/scripts/README.md` legacy boundary notes
+- `atlas/legacy/README.md`
+- `atlas/legacy/scripts/README.md`
+- `docs/legacy/README.md`
 
 ## Remaining gaps
 
@@ -57,7 +74,7 @@ Generated Atlas artifacts can contain target-project structure, behaviour, query
 
 ## Recommended next cleanup commit
 
-1. Consider moving old prompt-first scripts to `atlas/legacy/scripts/` only after confirming no active docs depend on their current paths.
+1. Move or stub the remaining old prompt-first helper scripts only after confirming no active docs depend on their current paths.
 2. Rename V2 suite writers from `.yaml` to `.json` once all downstream readers use the canonical JSON paths.
 3. Add `.codeatlasignore` scanner support if the built-in ignore rules are not enough.
 4. Add a SQLite read-model loader when `ngk ask/review/trace` needs fast structured queries.
