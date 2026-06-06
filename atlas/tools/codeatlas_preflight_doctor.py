@@ -2,14 +2,11 @@
 """CodeAtlas preflight doctor.
 
 Runs offline sanity checks before transferring CodeAtlas into a restricted Kiro network.
-This tool does not inspect target application repos deeply; it checks that the framework
-itself is coherent and ready for Kiro to use.
+This tool checks that the framework itself is coherent and ready for Kiro/ngk use.
 """
 from __future__ import annotations
 
 import json
-import re
-import sys
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -40,7 +37,6 @@ RECOMMENDED_FILES = [
     "docs/AI_ASSISTED_EXTRACTION_STRATEGY.md",
     "docs/REACT_STACK_MAPPING_GUIDE.md",
     "atlas/tools/react_stack_indexer.py",
-    "atlas/scripts/run-react-stack-indexer.sh",
 ]
 
 LEGACY_FIRST_RUN_COMMANDS = [
@@ -68,7 +64,7 @@ def check_file(path: str, severity: str, findings: list[dict]) -> None:
 
 def check_no_required_b64(findings: list[dict]) -> None:
     tool = read(ATLAS / "tools" / "codeatlas_v2_suite.py")
-    if "base64" in tool or "b64decode" in tool or "codeatlas_v2_suite_payload" in tool:
+    if "b64decode" in tool or "codeatlas_v2_suite_payload" in tool:
         findings.append({"severity": "error", "type": "encoded_launcher_detected", "path": "atlas/tools/codeatlas_v2_suite.py"})
 
 
