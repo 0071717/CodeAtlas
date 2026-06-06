@@ -21,6 +21,7 @@ python3 atlas/tools/codeatlas_v2_canonical.py doctor
 python3 atlas/tools/codeatlas_v2_canonical.py snapshot
 python3 atlas/tools/codeatlas_v2_canonical.py index
 python3 atlas/tools/codeatlas_v2_canonical.py graph
+python3 atlas/tools/codeatlas_v2_canonical.py semantic-layers
 python3 atlas/tools/codeatlas_v2_canonical.py validate
 python3 atlas/tools/codeatlas_v2_canonical.py drift-check
 python3 atlas/tools/codeatlas_v2_canonical.py visualizer-export
@@ -35,42 +36,50 @@ bash atlas/scripts/run-framework-v2-suite.sh
 
 ## Canonical foundation outputs
 
-New deterministic artifacts should be consumed as `.json` files:
+The suite writes JSON-compatible legacy `.yaml` files first, then the canonical
+wrapper promotes those files to `.json` equivalents for new consumers. Existing
+Kiro prompts may still read `.yaml`; new tools should prefer `.json`.
+
+Core outputs include:
 
 ```text
-atlas/source/snapshot.json
-atlas/source/file-hashes.json
-atlas/index/file-index.json
-atlas/index/symbol-index.json
-atlas/index/import-index.json
-atlas/index/endpoint-index.json
-atlas/index/route-index.json
-atlas/index/api-client-index.json
-atlas/index/schema-index.json
-atlas/index/ui-action-index.json
-atlas/index/test-index.json
-atlas/runtime/dependency-map.json
-atlas/runtime/middleware-map.json
-atlas/runtime/router-inclusion-map.json
-atlas/errors/python-exception-map.json
-atlas/errors/frontend-error-map.json
-atlas/payloads/opensearch-query-dsl.json
-atlas/bindings/ecosystem-bindings-resolved.json
-atlas/graph/nodes.json
-atlas/graph/edges.json
-atlas/graph/payload-graph.json
-atlas/graph/error-flow-graph.json
-atlas/flows/api-request-flows.json
-atlas/flows/ui-action-flows.json
-atlas/flows/error-flows.json
-atlas/audit/v2-validation-report.json
+atlas/source/snapshot.{yaml,json}
+atlas/source/file-hashes.{yaml,json}
+atlas/index/file-index.{yaml,json}
+atlas/index/symbol-index.{yaml,json}
+atlas/index/import-index.{yaml,json}
+atlas/index/endpoint-index.{yaml,json}
+atlas/index/route-index.{yaml,json}
+atlas/index/api-client-index.{yaml,json}
+atlas/index/schema-index.{yaml,json}
+atlas/index/service-index.{yaml,json}
+atlas/index/data-access-index.{yaml,json}
+atlas/index/runtime-entrypoint-index.{yaml,json}
+atlas/index/ui-action-index.{yaml,json}
+atlas/index/test-index.{yaml,json}
+atlas/index/config-index.{yaml,json}
+atlas/runtime/runtime-map.{yaml,json}
+atlas/payloads/api-contracts.{yaml,json}
+atlas/errors/error-flow-index.{yaml,json}
+atlas/facts/technical-facts.{yaml,json}
+atlas/graph/nodes.{yaml,json}
+atlas/graph/edges.{yaml,json}
+atlas/flows/api-request-flows.{yaml,json}
+atlas/flows/ui-flows.{yaml,json}
+atlas/knowledge/nodes/normalized-nodes.{yaml,json}
+atlas/knowledge/graph/normalized-graph.{yaml,json}
+atlas/knowledge/indexes/id-index.{yaml,json}
+atlas/audit/v2-validation-report.{yaml,json}
 atlas/audit/artifact-json-promotion-report.json
-atlas/change/changed-files.json
+atlas/change/changed-files.{yaml,json}
+atlas/change/impacted-nodes.{yaml,json}
+atlas/change/impacted-edges.{yaml,json}
+atlas/change/targeted-rerun-plan.{yaml,json}
 atlas/visualizer/graph-data.json
 atlas/visualizer/cytoscape-elements.json
+atlas/visualizer/node-detail-index.json
+atlas/visualizer/flow-cards.json
 ```
-
-Legacy `.yaml` JSON-compatible files may still exist for backward compatibility. New tools should prefer `.json` and only fall back to `.yaml` when needed.
 
 ## What the suite captures
 
@@ -113,17 +122,20 @@ frontend error/catch candidates
 library binding candidates for MUI, Leaflet, ReGraph, TanStack Query, React Router
 ```
 
-### Graph/flow seeds
+### Graph, flow, and semantic seeds
 
 ```text
 node export
 IMPLEMENTS edges
+CALLS edges where symbol resolution is deterministic enough to review
 MAPS_TO edges where frontend API method/path matches backend endpoint method/path
-BUILDS_QUERY edges for OpenSearch payload packets
-RAISES_ERROR/HANDLES_ERROR edges for exception candidates
+EVIDENCED_BY edges for schema/service/data-access/test/config records
 seed API request flows
-seed UI action flows
-seed error flows
+seed UI flows
+request/response contract hints from Python signatures and Pydantic schema matches
+explicit and unresolved endpoint error-flow records
+evidence-backed technical fact seeds
+normalized knowledge graph/read-model files for downstream tools
 ```
 
 ### Drift/maintenance

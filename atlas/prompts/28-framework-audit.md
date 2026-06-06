@@ -6,7 +6,7 @@ Assess whether the current CodeAtlas artifacts are complete, consistent, and sui
 Read:
 - README.md
 - docs/CODE_MAP_FOUNDATION.md
-- docs/TOOLING_ROADMAP.md
+- docs/ROADMAP_AND_IMPLEMENTATION_PLAN.md
 - docs/MAINTENANCE_STRATEGY.md
 - docs/WORKFLOW.md
 - atlas/config/extraction-policy.md

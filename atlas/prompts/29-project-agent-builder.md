@@ -11,7 +11,7 @@ Read:
 - docs/MERGE_REQUEST_REVIEW_FRAMEWORK.md
 - docs/CODE_MAP_FOUNDATION.md
 - docs/YAML_CONTRACT.md
-- docs/TOOLING_ROADMAP.md
+- docs/ROADMAP_AND_IMPLEMENTATION_PLAN.md
 - atlas/knowledge/manifest.yaml if present
 - atlas/knowledge/indexes/*.yaml if present
 - atlas/knowledge/cards/*.json if present

@@ -83,7 +83,7 @@ def read(path: Path, default: Any) -> Any:
 
 def ensure_dirs() -> None:
     for rel in """
-source index architecture map runtime graph flows facts rules requirements testing
+source index architecture map payloads bindings runtime graph errors flows facts rules requirements testing
 knowledge/nodes knowledge/indexes knowledge/graph knowledge/cards audit change
 visualizer plans tools-output
 """.split():
@@ -293,15 +293,28 @@ def literal_value(node: ast.AST) -> Any:
     return None
 
 
+def annotation_text(node: ast.AST | None) -> str | None:
+    if node is None:
+        return None
+    return ast.unparse(node) if hasattr(ast, "unparse") else type(node).__name__
+
+
+def arg_signature(arg: ast.arg, prefix: str = "") -> str:
+    annotation = annotation_text(arg.annotation)
+    return f"{prefix}{arg.arg}: {annotation}" if annotation else f"{prefix}{arg.arg}"
+
+
 def signature_for(node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) -> str:
     if isinstance(node, ast.ClassDef):
         return f"class {node.name}"
-    parts = [arg.arg for arg in node.args.args]
+    parts = [arg_signature(arg) for arg in node.args.args]
     if node.args.vararg:
-        parts.append("*" + node.args.vararg.arg)
+        parts.append(arg_signature(node.args.vararg, "*"))
     if node.args.kwarg:
-        parts.append("**" + node.args.kwarg.arg)
-    return f"{node.name}({', '.join(parts)})"
+        parts.append(arg_signature(node.args.kwarg, "**"))
+    returns = annotation_text(node.returns)
+    suffix = f" -> {returns}" if returns else ""
+    return f"{node.name}({', '.join(parts)}){suffix}"
 
 
 def import_names(tree: ast.AST) -> list[str]:
@@ -556,6 +569,156 @@ def load_collection(filename: str, key: str) -> list[dict[str, Any]]:
     return read(ATLAS / "index" / filename, {}).get(key, [])
 
 
+def first_annotation_from_signature(signature: str) -> dict[str, Any]:
+    """Return lightweight payload hints from a Python signature string.
+
+    The suite intentionally avoids executing application code. These hints are
+    deterministic evidence pointers, not complete OpenAPI contracts.
+    """
+    if "(" not in signature or ")" not in signature:
+        return {"parameters": [], "return_annotation": None, "confidence": "low"}
+    before_return, _, return_annotation = signature.partition(" -> ")
+    params_text = before_return.split("(", 1)[1].rsplit(")", 1)[0].strip()
+    params = []
+    if params_text:
+        for raw in [x.strip() for x in params_text.split(",") if x.strip()]:
+            if raw in {"self", "cls", "request"}:
+                continue
+            name, _, annotation = raw.partition(":")
+            params.append({"name": name.strip().lstrip("*"), "annotation": annotation.strip() or None})
+    return {"parameters": params, "return_annotation": return_annotation.strip() or None, "confidence": "medium" if params or return_annotation else "low"}
+
+
+def collection_items() -> dict[str, list[dict[str, Any]]]:
+    return {
+        "symbols": load_collection("symbol-index.yaml", "symbols"),
+        "endpoints": load_collection("endpoint-index.yaml", "endpoints"),
+        "routes": load_collection("route-index.yaml", "routes"),
+        "api_clients": load_collection("api-client-index.yaml", "api_clients"),
+        "schemas": load_collection("schema-index.yaml", "schemas"),
+        "services": load_collection("service-index.yaml", "services"),
+        "data_access": load_collection("data-access-index.yaml", "data_access"),
+        "runtime": load_collection("runtime-entrypoint-index.yaml", "runtime_entrypoints"),
+        "tests": load_collection("test-index.yaml", "tests"),
+        "configs": load_collection("config-index.yaml", "configs"),
+    }
+
+
+def cmd_semantic_layers(_: argparse.Namespace) -> None:
+    """Build deterministic higher-layer seed artifacts from lower indexes.
+
+    These artifacts are deliberately conservative: every assertion is copied
+    from deterministic indexes and keeps evidence/review metadata instead of
+    inventing business semantics.
+    """
+    ensure_dirs()
+    c = collection_items()
+    symbols_by_id = {x.get("id"): x for x in c["symbols"]}
+    schemas_by_name = {x.get("name"): x for x in c["schemas"]}
+
+    contracts: list[dict[str, Any]] = []
+    for endpoint in c["endpoints"]:
+        symbol = symbols_by_id.get(endpoint.get("source_symbol"), {})
+        signature_hints = first_annotation_from_signature(str(symbol.get("signature", "")))
+        request_schema = None
+        for param in signature_hints["parameters"]:
+            ann = param.get("annotation")
+            if ann and ann in schemas_by_name:
+                request_schema = schemas_by_name[ann]["id"]
+                break
+        contracts.append(
+            {
+                "id": f"contract.{slug(endpoint.get('id'))}",
+                "endpoint": endpoint.get("id"),
+                "method": endpoint.get("method"),
+                "path": endpoint.get("path"),
+                "handler": endpoint.get("handler"),
+                "request_parameters": signature_hints["parameters"],
+                "request_schema": request_schema,
+                "response_schema": schemas_by_name.get(signature_hints.get("return_annotation"), {}).get("id"),
+                "status": "seeded_from_signature",
+                "confidence": "medium" if request_schema or signature_hints["parameters"] else "low",
+                "needs_review": not bool(request_schema),
+                "evidence": endpoint.get("evidence", []),
+            }
+        )
+    write(ATLAS / "payloads/api-contracts.yaml", {"generated_at": now(), "api_contracts": contracts})
+
+    error_flows: list[dict[str, Any]] = []
+    for endpoint in c["endpoints"]:
+        raises = endpoint.get("raises", [])
+        if not raises:
+            error_flows.append(
+                {
+                    "id": f"error_flow.{slug(endpoint.get('id'))}.unmapped",
+                    "source": endpoint.get("id"),
+                    "errors": [],
+                    "status": "no_explicit_raise_detected",
+                    "confidence": "low",
+                    "needs_review": True,
+                    "evidence": endpoint.get("evidence", []),
+                }
+            )
+            continue
+        for raised in raises:
+            error_flows.append(
+                {
+                    "id": f"error_flow.{slug(endpoint.get('id'))}.{slug(raised)}",
+                    "source": endpoint.get("id"),
+                    "errors": [raised],
+                    "status": "explicit_raise_detected",
+                    "confidence": "medium",
+                    "needs_review": True,
+                    "evidence": endpoint.get("evidence", []),
+                }
+            )
+    write(ATLAS / "errors/error-flow-index.yaml", {"generated_at": now(), "error_flows": error_flows})
+
+    facts: list[dict[str, Any]] = []
+    fact_sources = [
+        ("endpoint", c["endpoints"], lambda x: f"{x.get('method')} {x.get('path')} is handled by {x.get('handler')}"),
+        ("schema", c["schemas"], lambda x: f"schema {x.get('name')} defines {len(x.get('fields', []))} field(s)"),
+        ("service", c["services"], lambda x: f"service function {x.get('function')} is indexed"),
+        ("data_access", c["data_access"], lambda x: f"data-access function {x.get('function')} is indexed"),
+        ("api_client", c["api_clients"], lambda x: f"frontend API client calls {x.get('method')} {x.get('path')}"),
+        ("route", c["routes"], lambda x: f"frontend route {x.get('path')} is indexed"),
+    ]
+    for typ, items, sentence in fact_sources:
+        for item in items:
+            facts.append(
+                {
+                    "id": f"fact.{typ}.{slug(item.get('id'))}",
+                    "type": typ,
+                    "statement": sentence(item),
+                    "source_id": item.get("id"),
+                    "repo": item.get("repo"),
+                    "file": item.get("file"),
+                    "confidence": item.get("confidence", "medium"),
+                    "needs_review": item.get("needs_review", True),
+                    "evidence": item.get("evidence", []),
+                }
+            )
+    write(ATLAS / "facts/technical-facts.yaml", {"generated_at": now(), "technical_facts": facts})
+
+    graph_nodes = read(ATLAS / "graph/nodes.yaml", {}).get("nodes", [])
+    graph_edges = read(ATLAS / "graph/edges.yaml", {}).get("edges", [])
+    knowledge_nodes = [
+        {
+            "id": node.get("id"),
+            "type": node.get("type"),
+            "label": node.get("name") or node.get("id"),
+            "repo": node.get("repo"),
+            "file": node.get("file"),
+            "source": "graph/nodes.yaml",
+        }
+        for node in graph_nodes
+        if node.get("id")
+    ]
+    write(ATLAS / "knowledge/nodes/normalized-nodes.yaml", {"generated_at": now(), "nodes": knowledge_nodes})
+    write(ATLAS / "knowledge/graph/normalized-graph.yaml", {"generated_at": now(), "nodes": knowledge_nodes, "edges": graph_edges})
+    write(ATLAS / "knowledge/indexes/id-index.yaml", {"generated_at": now(), "ids": sorted(node["id"] for node in knowledge_nodes)})
+
+
 def cmd_graph(_: argparse.Namespace) -> None:
     collections = {
         "symbol": load_collection("symbol-index.yaml", "symbols"),
@@ -671,6 +834,19 @@ def build_flows(collections: dict[str, list[dict[str, Any]]], edges: list[dict[s
 
 def cmd_validate(_: argparse.Namespace) -> None:
     findings: list[dict[str, Any]] = []
+    required_artifacts = [
+        "source/snapshot.yaml",
+        "index/file-index.yaml",
+        "graph/nodes.yaml",
+        "graph/edges.yaml",
+        "payloads/api-contracts.yaml",
+        "errors/error-flow-index.yaml",
+        "facts/technical-facts.yaml",
+        "knowledge/graph/normalized-graph.yaml",
+    ]
+    for rel in required_artifacts:
+        if not (ATLAS / rel).exists():
+            findings.append({"type": "missing_required_artifact", "path": f"atlas/{rel}"})
     nodes = read(ATLAS / "graph/nodes.yaml", {}).get("nodes", [])
     ids = {node.get("id") for node in nodes}
     for edge in read(ATLAS / "graph/edges.yaml", {}).get("edges", []):
@@ -723,14 +899,14 @@ def cmd_visualizer(_: argparse.Namespace) -> None:
 
 
 def cmd_all(args: argparse.Namespace) -> None:
-    for fn in [cmd_init, cmd_snapshot, cmd_index, cmd_graph, cmd_validate, cmd_visualizer]:
+    for fn in [cmd_init, cmd_snapshot, cmd_index, cmd_graph, cmd_semantic_layers, cmd_validate, cmd_visualizer]:
         fn(args)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="CodeAtlas V2 deterministic foundation suite")
     sub = parser.add_subparsers(dest="cmd", required=True)
-    for name in ["init", "snapshot", "index", "graph", "validate", "drift-check", "visualizer-export", "all"]:
+    for name in ["init", "snapshot", "index", "graph", "semantic-layers", "validate", "drift-check", "visualizer-export", "all"]:
         sub.add_parser(name)
     args = parser.parse_args()
     {
@@ -738,6 +914,7 @@ def main() -> None:
         "snapshot": cmd_snapshot,
         "index": cmd_index,
         "graph": cmd_graph,
+        "semantic-layers": cmd_semantic_layers,
         "validate": cmd_validate,
         "drift-check": cmd_drift,
         "visualizer-export": cmd_visualizer,

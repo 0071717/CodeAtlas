@@ -18,6 +18,7 @@ source snapshot
 → symbol/endpoint/route/API/test indexes
 → graph seeds
 → flow seeds
+→ payload/error/fact/knowledge seed layers
 → validation/drift reports
 → visualizer exports
 → targeted AI enrichment
@@ -31,8 +32,8 @@ This reduces hallucination and makes outputs reviewable, diffable, and reusable.
 From the CodeAtlas repo root:
 
 ```bash
-python3 atlas/tools/codeatlas_preflight_doctor.py
-python3 atlas/tools/codeatlas_v2_suite.py all
+python3 atlas/tools/codeatlas_v2_canonical.py doctor
+python3 atlas/tools/codeatlas_v2_canonical.py all
 python3 atlas/tools/ngk_trace_regraph_exporter.py "POST /example" || true
 ```
 

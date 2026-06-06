@@ -7,8 +7,8 @@ This document prevents Kiro from confusing older prompt-first workflows with the
 Use the V2 deterministic tools first:
 
 ```bash
-python3 atlas/tools/codeatlas_preflight_doctor.py
-python3 atlas/tools/codeatlas_v2_suite.py all
+python3 atlas/tools/codeatlas_v2_canonical.py doctor
+python3 atlas/tools/codeatlas_v2_canonical.py all
 ```
 
 Then use targeted enrichment prompts and reverse verification.
@@ -18,9 +18,9 @@ Then use targeted enrichment prompts and reverse verification.
 The following scripts and prompts come from the older architecture-discovery and prompt-orchestration workflow:
 
 ```text
-atlas/scripts/run-auto.sh
-atlas/scripts/run-pilot-auto.sh
-atlas/scripts/run-foundation.sh
+bash atlas/scripts/run-auto.sh
+bash atlas/scripts/run-pilot-auto.sh
+bash atlas/scripts/run-foundation.sh
 atlas/scripts/run-architecture-discovery.sh
 atlas/scripts/run-global.sh
 atlas/scripts/run-code-map.sh

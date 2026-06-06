@@ -141,7 +141,7 @@ When implementing a layer or tool:
 7. Avoid adding dependencies unless there is clear value.
 8. If a dependency is optional, provide a standard-library fallback.
 9. Include a dry-run or plan output before mutating application repos.
-10. Update `docs/KIRO_CHANGELOG.md`.
+10. Update `docs/CHANGELOG.md`.
 ```
 
 ## What Kiro should not do

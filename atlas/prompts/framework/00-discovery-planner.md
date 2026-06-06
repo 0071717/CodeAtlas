@@ -7,7 +7,7 @@ Read first:
 - docs/FRAMEWORK_ARCHITECTURE_V2.md
 - docs/KIRO_FRAMEWORK_IMPLEMENTATION_GUIDE.md
 - docs/LAYER_BUILD_CONTRACT.md
-- docs/KIRO_CHANGELOG.md
+- docs/CHANGELOG.md
 - atlas/config/project.yaml
 
 Do:
