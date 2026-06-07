@@ -1,0 +1,16 @@
+facts:
+  - id: fact.data.property_search.service_filters
+    claim: "Property search delegates to a service that filters listings by location text and minimum bedrooms."
+    type: data_flow
+    confidence: high
+    subject:
+      id: service.property_search.search_properties
+      kind: function
+      name: search_properties
+    evidence:
+      - evidence_id: evidence.data.property_search.service
+        repo_id: repo.property_hub
+        path: api/app/services/property_search.py
+        lines: [13, 22]
+        span_id: span.api.property_search_service.search_properties
+        method: python_ast

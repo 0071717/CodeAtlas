@@ -1,0 +1,22 @@
+facts:
+  - id: fact.ui.property_search.page_uses_query_hook
+    claim: "The property search page calls usePropertySearchQuery with location and bedroom filters supplied by the user."
+    type: ui_flow
+    confidence: high
+    subject:
+      id: ui.SearchPage
+      kind: react_component
+      name: SearchPage
+    evidence:
+      - evidence_id: evidence.ui.property_search.page
+        repo_id: repo.property_hub
+        path: ui/src/features/property/SearchPage.tsx
+        lines: [7, 21]
+        span_id: span.ui.property_search_page
+        method: react_static_analysis
+      - evidence_id: evidence.ui.property_search.hook
+        repo_id: repo.property_hub
+        path: ui/src/features/property/usePropertySearchQuery.ts
+        lines: [6, 14]
+        span_id: span.ui.use_property_search_query
+        method: typescript_static_analysis
