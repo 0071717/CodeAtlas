@@ -79,6 +79,10 @@ def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
 def sha256_json(value: object) -> str:
     return sha256_text(json.dumps(value, sort_keys=True, separators=(",", ":")))
 
@@ -226,13 +230,25 @@ def evidence_for_record(
 
 
 def record_state(record: dict[str, Any], evidence: list[dict[str, Any]]) -> str:
-    if record.get("state"):
-        return str(record["state"])
+    """Derive trust state purely from current evidence and origin.
+
+    A previously recorded `verified` is never trusted -- it must be re-earned
+    from current evidence on every run. `stale`/`contradicted` come from the
+    per-evidence verification_status set by the verify pass or the agreement
+    guard; AI/agent-origin records can never reach `verified`.
+    """
     if not evidence:
         return "unknown"
-    if any(ev.get("verification_status") == "unresolved" for ev in evidence):
+    statuses = {ev.get("verification_status") for ev in evidence}
+    if "stale" in statuses:
+        return "stale"
+    if "contradicted" in statuses:
+        return "contradicted"
+    if "unresolved" in statuses:
         return "partial"
     if record.get("needs_review"):
+        return "inferred"
+    if str(record.get("source") or "").lower() in {"agent", "ai", "kiro", "llm"}:
         return "inferred"
     return "verified"
 
@@ -384,10 +400,148 @@ def run() -> dict[str, Any]:
     return report
 
 
+def current_file_sha256(repo_records: dict[str, dict[str, Any]], repo: str, file: str) -> str | None:
+    """Hash the source file *directly* (not via the possibly-stale file index)."""
+    path = source_path(repo_records, repo, file)
+    if not path or not path.exists():
+        return None
+    try:
+        return sha256_bytes(path.read_bytes())
+    except Exception:
+        return None
+
+
+def verify_evidence_item(ev: dict[str, Any], repo_records: dict[str, dict[str, Any]]) -> str:
+    """Recompute current hashes and compare to the stored ones. Sets and returns
+    the evidence verification_status (current/stale/unresolved)."""
+    repo = ev.get("repo")
+    file = ev.get("file")
+    if not repo or not file:
+        return ev.get("verification_status") or "current"
+    path = source_path(repo_records, str(repo), str(file))
+    if path is not None and not path.exists():
+        ev["verification_status"] = "stale"
+        return "stale"
+    stored_file = ev.get("file_sha256")
+    current_file = current_file_sha256(repo_records, str(repo), str(file))
+    if stored_file and current_file and stored_file != current_file:
+        ev["verification_status"] = "stale"
+        return "stale"
+    stored_snip = ev.get("snippet_sha256")
+    current_snip = snippet_hash(repo_records, ev)
+    if stored_snip and current_snip and stored_snip != current_snip:
+        ev["verification_status"] = "stale"
+        return "stale"
+    if not stored_file:
+        ev["verification_status"] = "unresolved"
+        return "unresolved"
+    ev["verification_status"] = "current"
+    return "current"
+
+
+def detect_contradictions(repo_records: dict[str, dict[str, Any]]) -> int:
+    """Flag endpoints/routes that share a subject key but disagree on the handler.
+
+    Two records claiming the same (method, path) with different handlers cannot
+    both be authoritative, so both are marked `contradicted` with cross-refs.
+    """
+    count = 0
+    for stem, key, subject_fields in [
+        ("index/endpoint-index", "endpoints", ("method", "path")),
+        ("index/route-index", "routes", ("path",)),
+    ]:
+        doc, _ = read_first(stem, {})
+        if not isinstance(doc, dict) or key not in doc:
+            continue
+        groups: dict[tuple[str, ...], list[dict[str, Any]]] = {}
+        for rec in doc.get(key, []):
+            if not isinstance(rec, dict):
+                continue
+            subject = tuple(str(rec.get(f) or "").upper() if f == "method" else str(rec.get(f) or "") for f in subject_fields)
+            if all(subject):
+                groups.setdefault(subject, []).append(rec)
+        changed = False
+        for recs in groups.values():
+            handlers = {str(r.get("handler") or r.get("function") or r.get("name") or "") for r in recs}
+            handlers.discard("")
+            if len(recs) > 1 and len(handlers) > 1:
+                ids = [str(r.get("id")) for r in recs]
+                for rec in recs:
+                    rec["state"] = "contradicted"
+                    rec["contradicts"] = [i for i in ids if i != str(rec.get("id"))]
+                    count += 1
+                    changed = True
+        if changed:
+            write_both(stem, doc)
+    return count
+
+
+def verify_run() -> dict[str, Any]:
+    """Re-check existing canonical artifacts against current source and update
+    their trust state. This is the fail-closed gate: it can emit stale and
+    contradicted, which the enrichment pass never does."""
+    _, repo_records, _ = source_indexes()
+    summary = {"records": 0, "verified": 0, "stale": 0, "contradicted": 0, "partial": 0, "inferred": 0, "unknown": 0}
+    collections: list[dict[str, Any]] = []
+
+    for stem, key, _kind in CANONICAL_COLLECTIONS:
+        doc, _ = read_first(stem, {})
+        if not isinstance(doc, dict) or key not in doc:
+            continue
+        local = {"artifact": f"atlas/{stem}.json", "records": 0, "stale": 0}
+        for rec in doc.get(key, []):
+            if not isinstance(rec, dict):
+                continue
+            evidence = rec.get("evidence") if isinstance(rec.get("evidence"), list) else []
+            for ev in evidence:
+                if isinstance(ev, dict):
+                    verify_evidence_item(ev, repo_records)
+            state = record_state(rec, evidence)
+            rec["state"] = state
+            summary["records"] += 1
+            local["records"] += 1
+            summary[state] = summary.get(state, 0) + 1
+            if state == "stale":
+                local["stale"] += 1
+        write_both(stem, doc)
+        collections.append(local)
+
+    contradictions = detect_contradictions(repo_records)
+    summary["contradicted"] += contradictions
+
+    status = "drift" if (summary["stale"] or summary["contradicted"]) else "ok"
+    report = {
+        "generated_at": now(),
+        "mode": "verify",
+        "status": status,
+        "generator": GENERATOR,
+        "generator_version": GENERATOR_VERSION,
+        "summary": summary,
+        "collections": collections,
+    }
+    out = ATLAS / "audit" / "trust-verify-report.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return report
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Normalize canonical CodeAtlas artifacts with trust/provenance envelopes.")
+    parser = argparse.ArgumentParser(description="Normalize and verify canonical CodeAtlas artifacts with trust/provenance envelopes.")
+    parser.add_argument("--mode", choices=["enrich", "verify"], default="enrich", help="enrich: stamp provenance/evidence; verify: re-check stored hashes against source and emit stale/contradicted")
+    parser.add_argument("--strict", action="store_true", help="In verify mode, exit non-zero if any record is stale or contradicted (fail closed).")
     parser.add_argument("--json", action="store_true", help="Print the full JSON report")
     args = parser.parse_args()
+
+    if args.mode == "verify":
+        report = verify_run()
+        if args.json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            s = report["summary"]
+            print("trust-verify", f"status={report['status']}", f"records={s['records']}", f"stale={s['stale']}", f"contradicted={s['contradicted']}")
+        if args.strict and (report["summary"]["stale"] or report["summary"]["contradicted"]):
+            return 1
+        return 0
 
     report = run()
     if args.json:

@@ -175,7 +175,22 @@ def evaluate_drift(ws: Workspace, *, source_spans_only: bool = False) -> dict[st
                 }
             )
             continue
+        if not expected:
+            # No hash recorded is acceptable optional metadata.
+            continue
         if not valid_sha256(expected):
+            # A malformed hash must be surfaced, never silently skipped.
+            issues.append(
+                {
+                    "type": "invalid_source_span_hash",
+                    "severity": "warning",
+                    "path": span["path"],
+                    "span_id": span["span_id"],
+                    "expected_hash": expected,
+                    "affected_fact_ids": affected_fact_ids_for_span(store, span["span_id"], span["path"]),
+                    "message": f"Source span hash is not a valid sha256: {expected!r}",
+                }
+            )
             continue
         actual_hashes = file_hash_candidates(path, span["start_line"], span["end_line"])
         if expected not in actual_hashes:

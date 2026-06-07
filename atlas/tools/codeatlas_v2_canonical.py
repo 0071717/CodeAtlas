@@ -96,6 +96,17 @@ def run_trust_envelope() -> int:
     return code
 
 
+def run_trust_verify(strict: bool = False) -> int:
+    """Re-check existing canonical artifacts against current source (emits
+    stale/contradicted). Fails closed in strict mode."""
+    args = ["--mode", "verify"]
+    if strict:
+        args.append("--strict")
+    code = run_python(TRUST_ENVELOPE, args)
+    promote_yaml_json_to_json()
+    return code
+
+
 def run_graph_report() -> int:
     return run_python(GRAPH_REPORT, [])
 
@@ -131,6 +142,7 @@ def main() -> int:
             "all",
             "promote-json",
             "trust-envelope",
+            "verify",
             "graph-report",
             "validate-artifacts",
             "capability-audit",
@@ -159,6 +171,8 @@ def main() -> int:
         return 0
     if args.cmd == "trust-envelope":
         return run_trust_envelope()
+    if args.cmd == "verify":
+        return run_trust_verify(strict=args.strict)
     if args.cmd == "graph-report":
         run_trust_envelope()
         return run_graph_report()
@@ -188,8 +202,9 @@ def main() -> int:
     if args.cmd == "all" and code == 0:
         memory_code = run_no_mcp_memory()
         report_code = run_graph_report()
+        verify_code = run_trust_verify(strict=args.strict)
         validate_code = run_artifact_validation(strict=args.strict)
-        return memory_code or report_code or validate_code
+        return memory_code or report_code or verify_code or validate_code
     return code
 
 
