@@ -2,7 +2,7 @@
 """Attach trust/provenance envelopes to canonical CodeAtlas artifacts.
 
 This is a deterministic post-generation normalizer. The V2 suite still emits
-seed artifacts from source indexes; this pass turns those seed facts/edges into
+seed artifacts from source indexes; this pass turns those seed records into
 schema-aligned canonical records by adding:
 
 - fact fields expected by the canonical technical-fact schema (`domain`,
@@ -25,11 +25,28 @@ from typing import Any
 ROOT = Path.cwd()
 ATLAS = ROOT / "atlas"
 GENERATOR = "codeatlas_trust_envelope.py"
-GENERATOR_VERSION = "1"
+GENERATOR_VERSION = "2"
 
 CANONICAL_COLLECTIONS = [
     ("facts/technical-facts", "technical_facts", "technical_fact"),
     ("graph/edges", "edges", "graph_edge"),
+    ("graph/nodes", "nodes", "generic_record"),
+    ("index/symbol-index", "symbols", "generic_record"),
+    ("index/endpoint-index", "endpoints", "generic_record"),
+    ("index/route-index", "routes", "generic_record"),
+    ("index/component-index", "components", "generic_record"),
+    ("index/hook-index", "hooks", "generic_record"),
+    ("index/api-client-index", "api_clients", "generic_record"),
+    ("index/schema-index", "schemas", "generic_record"),
+    ("index/service-index", "services", "generic_record"),
+    ("index/data-access-index", "data_access", "generic_record"),
+    ("index/runtime-entrypoint-index", "runtime_entrypoints", "generic_record"),
+    ("index/test-index", "tests", "generic_record"),
+    ("index/config-index", "configs", "generic_record"),
+    ("payloads/api-contracts", "api_contracts", "generic_record"),
+    ("errors/error-flow-index", "error_flows", "generic_record"),
+    ("flows/api-request-flows", "api_request_flows", "generic_record"),
+    ("flows/ui-flows", "ui_flows", "generic_record"),
 ]
 
 
@@ -110,6 +127,22 @@ def snippet_hash(repo_records: dict[str, dict[str, Any]], evidence: dict[str, An
     return sha256_text(snippet)
 
 
+def fallback_evidence(record: dict[str, Any]) -> list[dict[str, Any]]:
+    """Use a record's own repo/file/line fields as source evidence when possible."""
+    repo = record.get("repo")
+    file = record.get("file")
+    if not repo or not file:
+        return []
+    ev: dict[str, Any] = {"type": "code", "repo": repo, "file": file}
+    for key in ["line_start", "line_end"]:
+        if isinstance(record.get(key), int):
+            ev[key] = record[key]
+    symbol = record.get("name") or record.get("function") or record.get("handler")
+    if symbol:
+        ev["symbol"] = symbol
+    return [ev]
+
+
 def enrich_evidence(
     evidence_items: Any,
     file_records: dict[tuple[str, str], dict[str, Any]],
@@ -131,13 +164,9 @@ def enrich_evidence(
         file = str(ev.get("file", "")) if ev.get("file") else ""
         file_rec = file_records.get((repo, file))
         repo_rec = repo_records.get(repo)
-        if file_rec:
-            ev.setdefault("file_sha256", file_rec.get("sha256"))
-        if repo_rec:
-            ev.setdefault("commit_sha", repo_rec.get("git_commit"))
-        snip = snippet_hash(repo_records, ev)
-        if snip:
-            ev.setdefault("snippet_sha256", snip)
+        ev.setdefault("file_sha256", file_rec.get("sha256") if file_rec else None)
+        ev.setdefault("commit_sha", repo_rec.get("git_commit") if repo_rec else None)
+        ev.setdefault("snippet_sha256", snippet_hash(repo_records, ev))
         if ev.get("file_sha256"):
             stats["with_file_hash"] += 1
         if ev.get("commit_sha"):
@@ -152,6 +181,18 @@ def enrich_evidence(
         stats["items"] += 1
         enriched.append(ev)
     return enriched, stats
+
+
+def evidence_for_record(
+    record: dict[str, Any],
+    file_records: dict[tuple[str, str], dict[str, Any]],
+    repo_records: dict[str, dict[str, Any]],
+    extractor: str,
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    raw = record.get("evidence")
+    if not raw:
+        raw = fallback_evidence(record)
+    return enrich_evidence(raw, file_records, repo_records, extractor=extractor)
 
 
 def record_state(record: dict[str, Any], evidence: list[dict[str, Any]]) -> str:
@@ -178,6 +219,12 @@ def provenance(stem: str, path: Path | None, source_manifest_sha256: str, input_
     }
 
 
+def mark_metadata(item: dict[str, Any]) -> None:
+    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+    metadata["trust_envelope"] = {"applied": True, "version": GENERATOR_VERSION}
+    item["metadata"] = metadata
+
+
 def normalize_fact(
     fact: dict[str, Any],
     prov: dict[str, Any],
@@ -191,14 +238,12 @@ def normalize_fact(
     item.setdefault("claim_type", source_type)
     if item.get("source_id") and not item.get("derived_from"):
         item["derived_from"] = [str(item["source_id"])]
-    evidence, stats = enrich_evidence(item.get("evidence", []), file_records, repo_records, extractor=f"codeatlas.v2.{source_type}")
+    evidence, stats = evidence_for_record(item, file_records, repo_records, extractor=f"codeatlas.v2.{source_type}")
     item["evidence"] = evidence
     item["state"] = record_state(item, evidence)
     item.setdefault("review_status", "unreviewed" if item.get("needs_review") else "accepted")
     item["provenance"] = prov
-    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
-    metadata["trust_envelope"] = {"applied": True, "version": GENERATOR_VERSION}
-    item["metadata"] = metadata
+    mark_metadata(item)
     return item, stats
 
 
@@ -210,13 +255,31 @@ def normalize_edge(
 ) -> tuple[dict[str, Any], dict[str, int]]:
     item = dict(edge)
     edge_type = str(item.get("type") or "LINKS")
-    evidence, stats = enrich_evidence(item.get("evidence", []), file_records, repo_records, extractor=f"codeatlas.v2.edge.{edge_type.lower()}")
+    evidence, stats = evidence_for_record(item, file_records, repo_records, extractor=f"codeatlas.v2.edge.{edge_type.lower()}")
     item["evidence"] = evidence
     item["state"] = record_state(item, evidence)
     item["provenance"] = prov
-    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
-    metadata["trust_envelope"] = {"applied": True, "version": GENERATOR_VERSION}
-    item["metadata"] = metadata
+    mark_metadata(item)
+    return item, stats
+
+
+def normalize_generic(
+    record: dict[str, Any],
+    prov: dict[str, Any],
+    kind: str,
+    file_records: dict[tuple[str, str], dict[str, Any]],
+    repo_records: dict[str, dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, int]]:
+    item = dict(record)
+    evidence, stats = evidence_for_record(item, file_records, repo_records, extractor=f"codeatlas.v2.{kind}")
+    item["evidence"] = evidence
+    item["state"] = record_state(item, evidence)
+    item["provenance"] = prov
+    if "confidence" not in item:
+        item["confidence"] = "high" if item["state"] == "verified" else "medium"
+    if "needs_review" not in item:
+        item["needs_review"] = item["state"] != "verified"
+    mark_metadata(item)
     return item, stats
 
 
@@ -250,8 +313,10 @@ def run() -> dict[str, Any]:
                 continue
             if kind == "technical_fact":
                 item, stats = normalize_fact(rec, prov, file_records, repo_records)
-            else:
+            elif kind == "graph_edge":
                 item, stats = normalize_edge(rec, prov, file_records, repo_records)
+            else:
+                item, stats = normalize_generic(rec, prov, kind, file_records, repo_records)
             normalized.append(item)
             combine_stats(local_stats, stats)
             combine_stats(report["evidence_summary"], stats)
