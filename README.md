@@ -2,6 +2,119 @@
 
 CodeAtlas is a deterministic-first framework for reverse-engineering mature codebases into evidence-backed, machine-readable project knowledge for AI coding agents, developer CLIs, reviewers, test generators, and visualisation tools.
 
+> **Make AI coding agents less wrong by forcing them to operate inside a verified evidence boundary.**
+
+> **A deterministic-first code evidence compiler and AI-grounding orchestrator.**
+
+> **CodeAtlas should be the thing AI agents must cite, obey, and be limited by — not because it knows everything, but because it knows exactly what is verified, what is inferred, what is stale, what is unsupported, and what is unknown.**
+
+CodeAtlas is not trying to be an omniscient AI that magically understands a whole software system. Its purpose is to compile source code and adjacent engineering evidence into a trust-aware knowledge layer that separates verified facts from inferred, partial, stale, contradicted, unsupported, and unknown claims.
+
+The strategic goal is to make repository-aware AI work more like evidence-backed engineering and less like plausible text generation.
+
+## Project overview
+
+CodeAtlas turns mature software systems into a local, reviewable knowledge substrate for humans and AI agents.
+
+It is designed to:
+
+- compile source files, symbols, routes, endpoints, flows, payloads, tests, and configuration into deterministic artifacts;
+- attach evidence, provenance, confidence, and capability gaps to generated knowledge;
+- expose machine-readable context packs for Kiro, `ngk`, code review, impact analysis, test selection, smart terminals, and future automation;
+- force AI agents to operate inside explicit evidence boundaries instead of treating repo text, generated summaries, and guesses as equally trustworthy;
+- surface known-unknowns instead of silently pretending unsupported libraries, stale artifacts, or missing extractors are understood;
+- keep AI/sub-agent enrichment downstream of deterministic artifacts rather than allowing prompt-first output to become the source of truth.
+
+A useful CodeAtlas answer should not merely say *what it thinks*. It should show:
+
+```text
+what is verified
+what is inferred
+what is stale
+what is contradicted
+what is unsupported
+what is partial
+what is unknown
+what evidence supports the answer
+what evidence is missing
+where the agent must refuse to be authoritative
+```
+
+## Trust boundary architecture
+
+The safest mental model is two-layered:
+
+```text
+Tier 1: Canonical Evidence Layer
+  deterministic extraction only
+  source/provenance snapshot
+  file hashes and source spans
+  parser-backed symbols/routes/endpoints/contracts
+  validated facts, edges, flows, and manifests
+  explicit capability gaps and stale-state detection
+
+Tier 2: Derived Intelligence Layer
+  context packs
+  impact analysis
+  trace exploration
+  review risk
+  likely relevant tests
+  AI/sub-agent findings
+  summaries and explanations
+```
+
+Tier 1 is the foundation. It should be strict, reproducible, schema-valid, provenance-bound, and boring.
+
+Tier 2 is where CodeAtlas becomes useful for developer workflows. It may rank, summarize, cluster, explain, and propose, but it must preserve trust labels and must not promote unsupported AI output into canonical knowledge.
+
+```mermaid
+flowchart TD
+  A[Source repositories] --> B[Source snapshot and file hashes]
+  B --> C[Deterministic extractors]
+  C --> D[Canonical evidence artifacts]
+  D --> E[Validation, provenance, and drift checks]
+  E --> F[Local read model]
+  F --> G[Context packs and developer tools]
+  G --> H[Kiro / ngk / AI coding agents]
+
+  I[AI and sub-agent enrichment] --> J[Structured findings]
+  J --> K[Verification and promotion gate]
+  K -->|only if evidence-backed| D
+  K -->|otherwise| L[Exploratory findings / known unknowns]
+```
+
+Source code remains the ultimate authority for current behaviour. CodeAtlas becomes authoritative only for claims that it can verify, cite, validate, and keep fresh.
+
+## Runtime and business-truth boundary
+
+CodeAtlas can become very strong at code-derived truth, but runtime and business truth require a wider evidence loop.
+
+A future runtime/business-truth architecture should treat business behaviour as something proven by multiple evidence sources, not inferred from static code alone:
+
+```mermaid
+flowchart LR
+  A[Static source evidence] --> G[Trust-aware claim store]
+  B[OpenAPI / API contracts] --> G
+  C[Tests and fixtures] --> G
+  D[Runtime traces and logs] --> G
+  E[Database/query observations] --> G
+  F[Human-reviewed requirements] --> G
+  G --> H[Verified / inferred / stale / contradicted / unsupported / unknown]
+  H --> I[AI grounding context]
+```
+
+Static code can say *what the code appears able to do*. Tests, traces, logs, contracts, schemas, runtime config, and reviewed requirements are needed before CodeAtlas can safely say *what the system actually does* or *what the business intends*.
+
+Runtime/business claims should therefore be promoted only when supported by enough evidence for the claim type. For example:
+
+- an endpoint exists: source route or OpenAPI evidence may be enough;
+- a request path works: route evidence plus executable test or trace evidence is stronger;
+- a permission rule is enforced: backend dependency/middleware evidence plus test evidence is required;
+- a business rule is intended: source evidence alone is not enough; reviewed requirements, tests, or product/domain evidence should be attached;
+- a flow is authoritative end-to-end: every leg must be verified, and unsupported libraries or missing runtime evidence must downgrade the trace to exploratory.
+
+The long-term ambition is not to remove uncertainty. It is to make uncertainty explicit and enforceable.
+
 It is designed for ecosystems like:
 
 - React / TypeScript frontends
@@ -190,6 +303,9 @@ docs/MAINTENANCE_STRATEGY.md
 10. If Atlas and source code disagree, mark Atlas stale or unsupported.
 11. MCP is not required for any canonical workflow.
 12. Missing library/framework bindings must become explicit capability gaps, not silent assumptions.
+13. Context packs are evidence envelopes, not permission slips for AI to guess.
+14. AI agents may enrich, rank, summarize, and propose, but deterministic evidence and promotion rules decide what becomes canonical.
+15. Authoritative traces must fail closed when critical evidence is stale, unsupported, contradicted, partial, or unknown.
 
 ## `ngk trace`
 
