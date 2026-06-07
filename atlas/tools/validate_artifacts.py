@@ -65,7 +65,7 @@ ENVELOPE_COLLECTIONS = [
     ("flows/ui-flows", "ui_flows"),
 ]
 
-CONFIDENCE_VALUES = {"high", "medium", "low"}
+CONFIDENCE_VALUES = {"high", "medium", "low", "none"}
 STATE_VALUES = {"verified", "inferred", "unsupported", "stale", "contradicted", "partial", "unknown"}
 REVIEW_STATUS_VALUES = {"unreviewed", "accepted", "rejected", "needs_clarification", "superseded"}
 EDGE_TYPES = {
@@ -305,12 +305,26 @@ def check_trust_contracts(atlas: Path, findings: list[dict[str, Any]]) -> None:
     check_additional_envelope_collections(atlas, findings)
 
 
-def write_report(atlas: Path, findings: list[dict[str, Any]], parseable_count: int) -> None:
+def strict_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    strict_types = {
+        "missing_core_artifact",
+        "schema_empty_evidence",
+        "evidence_missing_snippet_hash",
+        "evidence_missing_commit_sha",
+        "flow_step_unknown_node",
+    }
+    return [f for f in findings if f.get("severity") == "warning" and f.get("type") in strict_types]
+
+
+def write_report(atlas: Path, findings: list[dict[str, Any]], parseable_count: int, strict: bool = False) -> None:
+    strict_failures = strict_findings(findings) if strict else []
     error_count = sum(1 for f in findings if f.get("severity") == "error")
     warning_count = sum(1 for f in findings if f.get("severity") == "warning")
     report = {
         "generated_at": now(),
-        "status": "ok" if error_count == 0 else "error",
+        "status": "ok" if error_count == 0 and not strict_failures else "error",
+        "strict": strict,
+        "strict_failure_count": len(strict_failures),
         "parseable_artifact_count": parseable_count,
         "error_count": error_count,
         "warning_count": warning_count,
@@ -326,13 +340,14 @@ def write_report(atlas: Path, findings: list[dict[str, Any]], parseable_count: i
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate generated CodeAtlas artifacts.")
     parser.add_argument("atlas", nargs="?", default=str(DEFAULT_ATLAS), help="Path to atlas directory")
+    parser.add_argument("--strict", action="store_true", help="Fail closed on strict canonical warnings as well as errors")
     args = parser.parse_args()
 
     atlas = Path(args.atlas)
     findings: list[dict[str, Any]] = []
     if not atlas.exists():
         findings.append({"severity": "error", "type": "missing_atlas_directory", "path": str(atlas)})
-        write_report(atlas, findings, 0)
+        write_report(atlas, findings, 0, strict=args.strict)
         return 1
 
     parseable_count = check_parseable(atlas, findings)
@@ -340,8 +355,8 @@ def main() -> int:
     check_graph_links(atlas, findings)
     check_flow_links(atlas, findings)
     check_trust_contracts(atlas, findings)
-    write_report(atlas, findings, parseable_count)
-    return 1 if any(f.get("severity") == "error" for f in findings) else 0
+    write_report(atlas, findings, parseable_count, strict=args.strict)
+    return 1 if any(f.get("severity") == "error" for f in findings) or (args.strict and strict_findings(findings)) else 0
 
 
 if __name__ == "__main__":
