@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Validate generated CodeAtlas artifacts without external dependencies.
 
-This pass now covers the trust-core contract for canonical facts and graph edges
-in addition to parseability, graph links, and flow step links. It intentionally
-implements only the small CodeAtlas schema subset needed by the generated
-artifacts so the validator remains dependency-free in restricted environments.
+This pass covers the trust-core contract for canonical facts, graph edges, and
+other trust-envelope-normalized generated artefact collections in addition to
+parseability, graph links, and flow step links. It intentionally implements only
+the small CodeAtlas schema subset needed by generated artifacts so the validator
+remains dependency-free in restricted environments.
 """
 from __future__ import annotations
 
@@ -44,6 +45,26 @@ EXPECTED_CORE = [
     ("graph/edges", "edges"),
 ]
 
+ENVELOPE_COLLECTIONS = [
+    ("graph/nodes", "nodes"),
+    ("index/symbol-index", "symbols"),
+    ("index/endpoint-index", "endpoints"),
+    ("index/route-index", "routes"),
+    ("index/component-index", "components"),
+    ("index/hook-index", "hooks"),
+    ("index/api-client-index", "api_clients"),
+    ("index/schema-index", "schemas"),
+    ("index/service-index", "services"),
+    ("index/data-access-index", "data_access"),
+    ("index/runtime-entrypoint-index", "runtime_entrypoints"),
+    ("index/test-index", "tests"),
+    ("index/config-index", "configs"),
+    ("payloads/api-contracts", "api_contracts"),
+    ("errors/error-flow-index", "error_flows"),
+    ("flows/api-request-flows", "api_request_flows"),
+    ("flows/ui-flows", "ui_flows"),
+]
+
 CONFIDENCE_VALUES = {"high", "medium", "low"}
 STATE_VALUES = {"verified", "inferred", "unsupported", "stale", "contradicted", "partial", "unknown"}
 REVIEW_STATUS_VALUES = {"unreviewed", "accepted", "rejected", "needs_clarification", "superseded"}
@@ -63,6 +84,7 @@ EDGE_TYPES = {
     "CONTRADICTS",
     "TESTS",
 }
+EVIDENCE_ENVELOPE_FIELDS = ["file_sha256", "commit_sha", "snippet_sha256", "extractor", "deterministic", "verification_status"]
 
 
 def now() -> str:
@@ -204,13 +226,42 @@ def check_evidence(record: dict[str, Any], artifact: str, record_id: str, findin
         if not isinstance(ev, dict):
             findings.append({"severity": "error", "type": "schema_invalid_evidence_item", "artifact": artifact, "record": record_id, "index": index})
             continue
+        for field in EVIDENCE_ENVELOPE_FIELDS:
+            if field not in ev:
+                findings.append({"severity": "error", "type": "evidence_missing_envelope_field", "artifact": artifact, "record": record_id, "index": index, "field": field})
         if ev.get("type") == "code" and ev.get("repo") and ev.get("file"):
             if not ev.get("file_sha256"):
                 findings.append({"severity": "error", "type": "evidence_missing_file_hash", "artifact": artifact, "record": record_id, "index": index})
             if "line_start" in ev and "line_end" in ev and not ev.get("snippet_sha256"):
                 findings.append({"severity": "warning", "type": "evidence_missing_snippet_hash", "artifact": artifact, "record": record_id, "index": index})
-            if "commit_sha" not in ev:
+            if ev.get("commit_sha") is None:
                 findings.append({"severity": "warning", "type": "evidence_missing_commit_sha", "artifact": artifact, "record": record_id, "index": index})
+
+
+def check_record_envelope(record: dict[str, Any], artifact: str, record_id: str, findings: list[dict[str, Any]]) -> None:
+    require_field(record, "provenance", dict, artifact, record_id, findings)
+    require_field(record, "evidence", list, artifact, record_id, findings)
+    require_field(record, "state", str, artifact, record_id, findings)
+    if isinstance(record.get("state"), str) and record.get("state") not in STATE_VALUES:
+        findings.append({"severity": "error", "type": "schema_invalid_enum", "artifact": artifact, "record": record_id, "field": "state", "value": record.get("state")})
+    check_provenance(record, artifact, record_id, findings)
+    check_evidence(record, artifact, record_id, findings)
+
+
+def check_additional_envelope_collections(atlas: Path, findings: list[dict[str, Any]]) -> None:
+    for stem, key in ENVELOPE_COLLECTIONS:
+        doc = read_first_json(atlas, stem, findings)
+        if not isinstance(doc, dict) or key not in doc:
+            continue
+        seen: set[str] = set()
+        for record in doc.get(key, []):
+            if not isinstance(record, dict):
+                continue
+            record_id = str(record.get("id") or "<missing>")
+            if record_id in seen:
+                findings.append({"severity": "error", "type": "duplicate_enveloped_record_id", "artifact": f"atlas/{stem}.json", "id": record_id})
+            seen.add(record_id)
+            check_record_envelope(record, f"atlas/{stem}.json", record_id, findings)
 
 
 def check_trust_contracts(atlas: Path, findings: list[dict[str, Any]]) -> None:
@@ -227,16 +278,11 @@ def check_trust_contracts(atlas: Path, findings: list[dict[str, Any]]) -> None:
             seen.add(record_id)
             for field in ["id", "domain", "source_type", "statement", "confidence", "state"]:
                 require_field(fact, field, str, "atlas/facts/technical-facts.json", record_id, findings)
-            require_field(fact, "provenance", dict, "atlas/facts/technical-facts.json", record_id, findings)
-            require_field(fact, "evidence", list, "atlas/facts/technical-facts.json", record_id, findings)
             if isinstance(fact.get("confidence"), str) and fact.get("confidence") not in CONFIDENCE_VALUES:
                 findings.append({"severity": "error", "type": "schema_invalid_enum", "artifact": "atlas/facts/technical-facts.json", "record": record_id, "field": "confidence", "value": fact.get("confidence")})
-            if isinstance(fact.get("state"), str) and fact.get("state") not in STATE_VALUES:
-                findings.append({"severity": "error", "type": "schema_invalid_enum", "artifact": "atlas/facts/technical-facts.json", "record": record_id, "field": "state", "value": fact.get("state")})
             if fact.get("review_status") and fact.get("review_status") not in REVIEW_STATUS_VALUES:
                 findings.append({"severity": "error", "type": "schema_invalid_enum", "artifact": "atlas/facts/technical-facts.json", "record": record_id, "field": "review_status", "value": fact.get("review_status")})
-            check_provenance(fact, "atlas/facts/technical-facts.json", record_id, findings)
-            check_evidence(fact, "atlas/facts/technical-facts.json", record_id, findings)
+            check_record_envelope(fact, "atlas/facts/technical-facts.json", record_id, findings)
 
     edges_doc = read_first_json(atlas, "graph/edges", findings)
     if isinstance(edges_doc, dict) and "edges" in edges_doc:
@@ -250,16 +296,13 @@ def check_trust_contracts(atlas: Path, findings: list[dict[str, Any]]) -> None:
             seen_edges.add(record_id)
             for field in ["id", "source", "target", "type", "confidence", "state"]:
                 require_field(edge, field, str, "atlas/graph/edges.json", record_id, findings)
-            require_field(edge, "provenance", dict, "atlas/graph/edges.json", record_id, findings)
-            require_field(edge, "evidence", list, "atlas/graph/edges.json", record_id, findings)
             if isinstance(edge.get("type"), str) and edge.get("type") not in EDGE_TYPES:
                 findings.append({"severity": "error", "type": "schema_invalid_enum", "artifact": "atlas/graph/edges.json", "record": record_id, "field": "type", "value": edge.get("type")})
             if isinstance(edge.get("confidence"), str) and edge.get("confidence") not in CONFIDENCE_VALUES:
                 findings.append({"severity": "error", "type": "schema_invalid_enum", "artifact": "atlas/graph/edges.json", "record": record_id, "field": "confidence", "value": edge.get("confidence")})
-            if isinstance(edge.get("state"), str) and edge.get("state") not in STATE_VALUES:
-                findings.append({"severity": "error", "type": "schema_invalid_enum", "artifact": "atlas/graph/edges.json", "record": record_id, "field": "state", "value": edge.get("state")})
-            check_provenance(edge, "atlas/graph/edges.json", record_id, findings)
-            check_evidence(edge, "atlas/graph/edges.json", record_id, findings)
+            check_record_envelope(edge, "atlas/graph/edges.json", record_id, findings)
+
+    check_additional_envelope_collections(atlas, findings)
 
 
 def write_report(atlas: Path, findings: list[dict[str, Any]], parseable_count: int) -> None:
