@@ -1,0 +1,38 @@
+id: test-gap-reviewer
+description: ngk test-gap-reviewer specialist.
+mode: read_only
+scope:
+  domains:
+  - tests
+  include_paths: []
+  exclude_paths:
+  - .env
+  - '**/*secret*'
+  - '**/*key*'
+tools:
+  allowed_builtin:
+  - read
+  - grep
+  - shell
+  allowed_ngk_tools:
+  - ngk tool tests
+  - ngk tool impact
+  denied_shell_patterns:
+  - ngk orchestrate
+  - ngk delegate
+  - git commit
+  - git push
+  - rm -rf
+  - npm install
+  - pip install
+forbidden_actions:
+- modify files
+- commit changes
+- push changes
+- install dependencies
+- nested orchestration
+output_contract: ngk_agent_result_v1
+max_runtime_seconds: 240
+max_findings: 20
+max_context_facts: 30
+prompt_template: test-gap-reviewer.md
