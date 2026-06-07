@@ -1,27 +1,15 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 from ngk_framework.base import Workspace
 
 from ngk_orchestrator.profiles_api import PROMPT_DIR, RULE_DIR, list_profiles, validate_profiles
 
-DENIED_COMMANDS = [
-    "ngk orchestrate .*",
-    "ngk delegate .*",
-    "git commit .*",
-    "git push .*",
-    "rm -rf .*",
-    "npm install .*",
-    "pnpm install .*",
-    "yarn add .*",
-    "pip install .*",
-    "poetry add .*",
-    "kiro .*",
-    ".*--trust-all-tools.*",
-]
+# MCP is permanently disabled for canonical workflows. Shell is exposed only as a
+# no-MCP facade for the machine-readable ngk tool namespace; preToolUse hooks are
+# the safety gate for anything beyond these explicit command families.
 ALLOWED_COMMANDS = [
     "ngk tool sources .*",
     "ngk tool fact .*",
@@ -59,7 +47,6 @@ def render_prompt(profile: dict[str, Any]) -> str:
 
 def generated_agent(profile: dict[str, Any]) -> dict[str, Any]:
     allowed_builtin = profile.get("tools", {}).get("allowed_builtin") or ["read", "grep"]
-    # Shell is exposed only for restricted ngk tool commands; hooks provide an additional guardrail.
     if "shell" not in allowed_builtin:
         allowed_builtin = list(allowed_builtin) + ["shell"]
     return {
@@ -80,7 +67,6 @@ def generated_agent(profile: dict[str, Any]) -> dict[str, Any]:
         "toolsSettings": {
             "shell": {
                 "allowedCommands": ALLOWED_COMMANDS,
-                "deniedCommands": DENIED_COMMANDS,
                 "autoAllowReadonly": True,
             }
         },
