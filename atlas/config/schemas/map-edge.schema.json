@@ -2,7 +2,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "CodeAtlasMapEdge",
   "type": "object",
-  "required": ["id", "source", "target", "type", "confidence"],
+  "required": [
+    "id",
+    "source",
+    "target",
+    "type",
+    "confidence",
+    "state",
+    "evidence",
+    "provenance"
+  ],
   "properties": {
     "id": {
       "type": "string"
@@ -17,6 +26,7 @@
       "enum": [
         "OWNS",
         "CONTAINS",
+        "IMPLEMENTS",
         "CALLS",
         "MAPS_TO",
         "VALIDATES",
@@ -31,7 +41,22 @@
       ]
     },
     "confidence": {
-      "enum": ["high", "medium", "low"]
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "state": {
+      "enum": [
+        "verified",
+        "inferred",
+        "unsupported",
+        "stale",
+        "contradicted",
+        "partial",
+        "unknown"
+      ]
     },
     "needs_review": {
       "type": "boolean"
@@ -39,12 +64,111 @@
     "evidence": {
       "type": "array",
       "items": {
-        "type": "object"
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "line_start": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "line_end": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "commit_sha": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file_sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "snippet_sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "extractor": {
+            "type": "string"
+          },
+          "deterministic": {
+            "type": "boolean"
+          },
+          "verification_status": {
+            "enum": [
+              "current",
+              "unresolved",
+              "stale",
+              "contradicted"
+            ]
+          },
+          "metadata": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true
       }
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "generated_at",
+        "generator",
+        "generator_version",
+        "input_artifact_sha256",
+        "source_manifest_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string"
+        },
+        "generated_at": {
+          "type": "string"
+        },
+        "generator": {
+          "type": "string"
+        },
+        "generator_version": {
+          "type": "string"
+        },
+        "input_artifact": {
+          "type": "string"
+        },
+        "input_artifact_sha256": {
+          "type": "string"
+        },
+        "source_manifest_sha256": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     },
     "metadata": {
       "type": "object"
     }
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }

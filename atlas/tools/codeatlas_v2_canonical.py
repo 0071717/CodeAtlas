@@ -25,6 +25,7 @@ GRAPH_REPORT = ATLAS / "tools" / "codeatlas_graph_report.py"
 ARTIFACT_VALIDATOR = ATLAS / "tools" / "validate_artifacts.py"
 CAPABILITY_AUDIT = ATLAS / "tools" / "codeatlas_capability_audit.py"
 SQLITE_READ_MODEL = ATLAS / "tools" / "codeatlas_sqlite_read_model.py"
+TRUST_ENVELOPE = ATLAS / "tools" / "codeatlas_trust_envelope.py"
 
 ARTIFACT_DIRS = [
     "source",
@@ -87,6 +88,14 @@ def promote_yaml_json_to_json() -> list[dict[str, Any]]:
     return promoted
 
 
+def run_trust_envelope() -> int:
+    """Normalize canonical artifacts with provenance/evidence envelopes."""
+    promote_yaml_json_to_json()
+    code = run_python(TRUST_ENVELOPE, [])
+    promote_yaml_json_to_json()
+    return code
+
+
 def run_graph_report() -> int:
     return run_python(GRAPH_REPORT, [])
 
@@ -97,11 +106,11 @@ def run_artifact_validation() -> int:
 
 def run_no_mcp_memory() -> int:
     """Build the local no-MCP memory layer from canonical artifacts."""
-    promote_yaml_json_to_json()
+    envelope_code = run_trust_envelope()
     capability_code = run_python(CAPABILITY_AUDIT, [])
     sqlite_code = run_python(SQLITE_READ_MODEL, [])
     promote_yaml_json_to_json()
-    return capability_code or sqlite_code
+    return envelope_code or capability_code or sqlite_code
 
 
 def main() -> int:
@@ -120,6 +129,7 @@ def main() -> int:
             "visualizer-export",
             "all",
             "promote-json",
+            "trust-envelope",
             "graph-report",
             "validate-artifacts",
             "capability-audit",
@@ -137,19 +147,21 @@ def main() -> int:
         promoted = promote_yaml_json_to_json()
         print(f"promoted {len(promoted)} JSON-compatible YAML artifacts")
         return 0
+    if args.cmd == "trust-envelope":
+        return run_trust_envelope()
     if args.cmd == "graph-report":
-        promote_yaml_json_to_json()
+        run_trust_envelope()
         return run_graph_report()
     if args.cmd == "validate-artifacts":
-        promote_yaml_json_to_json()
+        run_trust_envelope()
         return run_artifact_validation()
     if args.cmd == "capability-audit":
-        promote_yaml_json_to_json()
+        run_trust_envelope()
         code = run_python(CAPABILITY_AUDIT, [])
         promote_yaml_json_to_json()
         return code
     if args.cmd == "sqlite-read-model":
-        promote_yaml_json_to_json()
+        run_trust_envelope()
         code = run_python(SQLITE_READ_MODEL, [])
         promote_yaml_json_to_json()
         return code
@@ -159,6 +171,10 @@ def main() -> int:
     code = run_python(SUITE, [args.cmd])
     promoted = promote_yaml_json_to_json()
     print(f"json-promotion {len(promoted)}")
+    if args.cmd in {"semantic-layers", "graph", "all"} and code == 0:
+        trust_code = run_trust_envelope()
+        if trust_code:
+            return trust_code
     if args.cmd == "all" and code == 0:
         memory_code = run_no_mcp_memory()
         report_code = run_graph_report()

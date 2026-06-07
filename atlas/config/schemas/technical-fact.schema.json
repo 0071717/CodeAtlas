@@ -2,7 +2,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "CodeAtlasTechnicalFact",
   "type": "object",
-  "required": ["id", "domain", "source_type", "statement", "confidence"],
+  "required": [
+    "id",
+    "domain",
+    "source_type",
+    "statement",
+    "confidence",
+    "state",
+    "evidence",
+    "provenance"
+  ],
   "properties": {
     "id": {
       "type": "string",
@@ -13,9 +22,25 @@
     },
     "source_type": {
       "type": "string",
-      "description": "validation, permission, service_condition, data_access, ui_state, error_condition, state_transition, side_effect, contract"
+      "description": "validation, permission, service_condition, data_access, ui_state, error_condition, state_transition, side_effect, contract, endpoint, schema, service, api_client, route"
+    },
+    "type": {
+      "type": "string",
+      "description": "Legacy/source collection type retained for reader compatibility; source_type is canonical."
+    },
+    "claim_type": {
+      "type": "string"
     },
     "statement": {
+      "type": "string"
+    },
+    "source_id": {
+      "type": "string"
+    },
+    "repo": {
+      "type": "string"
+    },
+    "file": {
       "type": "string"
     },
     "derived_from": {
@@ -27,21 +52,141 @@
     "evidence": {
       "type": "array",
       "items": {
-        "type": "object"
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "line_start": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "line_end": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "commit_sha": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file_sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "snippet_sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "extractor": {
+            "type": "string"
+          },
+          "deterministic": {
+            "type": "boolean"
+          },
+          "verification_status": {
+            "enum": [
+              "current",
+              "unresolved",
+              "stale",
+              "contradicted"
+            ]
+          },
+          "metadata": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true
       }
     },
     "confidence": {
-      "enum": ["high", "medium", "low"]
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "state": {
+      "enum": [
+        "verified",
+        "inferred",
+        "unsupported",
+        "stale",
+        "contradicted",
+        "partial",
+        "unknown"
+      ]
     },
     "needs_review": {
       "type": "boolean"
     },
     "review_status": {
-      "enum": ["unreviewed", "accepted", "rejected", "needs_clarification", "superseded"]
+      "enum": [
+        "unreviewed",
+        "accepted",
+        "rejected",
+        "needs_clarification",
+        "superseded"
+      ]
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "generated_at",
+        "generator",
+        "generator_version",
+        "input_artifact_sha256",
+        "source_manifest_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string"
+        },
+        "generated_at": {
+          "type": "string"
+        },
+        "generator": {
+          "type": "string"
+        },
+        "generator_version": {
+          "type": "string"
+        },
+        "input_artifact": {
+          "type": "string"
+        },
+        "input_artifact_sha256": {
+          "type": "string"
+        },
+        "source_manifest_sha256": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     },
     "metadata": {
       "type": "object"
     }
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }
