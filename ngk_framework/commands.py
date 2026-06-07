@@ -19,6 +19,7 @@ from .impact import compute_impact, select_tests_from_impact
 from .indexer import AtlasIndexer
 from .review import cmd_review
 from .store import AtlasStore
+from ngk_orchestrator.commands import add_orchestrator_parsers, cmd_smart_orch
 
 def cmd_atlas_index(args: argparse.Namespace) -> None:
     ws = Workspace(Path.cwd(), args.atlas, args.ngk_dir)
@@ -354,6 +355,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(atlas=".atlas", ngk_dir=".ngk")
     add_workspace_args(p)
     sub = p.add_subparsers(dest="cmd", required=True)
+    add_orchestrator_parsers(sub, add_workspace_args)
 
     atlas = sub.add_parser("atlas")
     add_workspace_args(atlas)
@@ -521,10 +523,19 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--strict", action="store_true")
     s.set_defaults(func=cmd_verify)
 
+    # smart: legacy session view plus orchestration cockpit
     s = sub.add_parser("smart")
     add_workspace_args(s)
+    s.add_argument("smart_cmd", nargs="?", choices=["orchestration"], default=None)
+    s.add_argument("smart_target", nargs="?", default=None)
     s.add_argument("--session", default="latest")
-    s.set_defaults(func=cmd_smart)
+    s.add_argument("--orchestration", default=None)
+    def _smart_dispatch(args):
+        if args.smart_cmd == "orchestration" or args.orchestration:
+            args.orchestration = args.smart_target or args.orchestration or "latest"
+            return cmd_smart_orch(args)
+        return cmd_smart(args)
+    s.set_defaults(func=_smart_dispatch)
 
     return p
 

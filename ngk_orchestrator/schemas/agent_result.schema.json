@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "task_id",
+    "agent_profile",
+    "status",
+    "verdict",
+    "confidence",
+    "summary",
+    "findings",
+    "uncertainties",
+    "not_confirmed",
+    "requested_followups"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    }
+  },
+  "additionalProperties": true,
+  "title": "agent_result"
+}
