@@ -1,0 +1,10 @@
+{
+  "schema_version": "codeatlas.atlas.v1",
+  "project": "ngk-property-hub",
+  "generated_at": "2026-06-07T00:00:00Z",
+  "artifact_counts": {
+    "facts": 3,
+    "source_spans": 4,
+    "traces": 1
+  }
+}

@@ -1,0 +1,16 @@
+facts:
+  - id: fact.api.property_search.endpoint
+    claim: "The backend exposes GET /properties/search for property search."
+    type: api_endpoint
+    confidence: high
+    subject:
+      id: api.GET./properties/search
+      kind: api_operation
+      name: "GET /properties/search"
+    evidence:
+      - evidence_id: evidence.api.property_search.route
+        repo_id: repo.property_hub
+        path: api/app/routers/property.py
+        lines: [8, 14]
+        span_id: span.api.property_router.search_endpoint
+        method: fastapi_route_extraction

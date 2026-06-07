@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codeatlas-ngk"
+version = "0.1.0"
+description = "Atlas-native ngk indexing, retrieval, context pack, and answer-audit CLI for CodeAtlas artifacts."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+
+[project.scripts]
+ngk = "ngk_framework.cli:main"
+
+[tool.setuptools]
+packages = ["ngk_framework"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
