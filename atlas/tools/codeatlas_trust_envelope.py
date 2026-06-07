@@ -25,7 +25,23 @@ from typing import Any
 ROOT = Path.cwd()
 ATLAS = ROOT / "atlas"
 GENERATOR = "codeatlas_trust_envelope.py"
-GENERATOR_VERSION = "2"
+
+
+def _module_version() -> str:
+    """Pin the extractor version to a verifiable content hash of this module so
+    provenance/extractor_version is not a bare, unfalsifiable constant."""
+    try:
+        digest = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()[:12]
+    except Exception:
+        digest = "unknown"
+    return f"2+{digest}"
+
+
+GENERATOR_VERSION = _module_version()
+
+# Collections produced by the regex-based React indexers. They are still
+# heuristic, so their records are capped at `inferred` even when evidence resolves.
+REGEX_KINDS = {"react_route", "react_query", "react_library"}
 
 CANONICAL_COLLECTIONS = [
     ("facts/technical-facts", "technical_facts", "technical_fact"),
@@ -47,6 +63,11 @@ CANONICAL_COLLECTIONS = [
     ("errors/error-flow-index", "error_flows", "generic_record"),
     ("flows/api-request-flows", "api_request_flows", "generic_record"),
     ("flows/ui-flows", "ui_flows", "generic_record"),
+    ("index/react-router-index", "routes", "react_route"),
+    ("index/tanstack-query-index", "queries", "react_query"),
+    ("index/material-ui-index", "mui_components", "react_library"),
+    ("index/leaflet-index", "leaflet_components", "react_library"),
+    ("index/regraph-index", "regraph_components", "react_library"),
 ]
 
 
@@ -149,7 +170,7 @@ def enrich_evidence(
     repo_records: dict[str, dict[str, Any]],
     extractor: str,
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
-    stats = {"items": 0, "with_file_hash": 0, "with_commit": 0, "with_snippet_hash": 0, "unresolved": 0}
+    stats = {"items": 0, "with_file_hash": 0, "with_commit": 0, "with_snippet_hash": 0, "unresolved": 0, "conflicts": 0}
     enriched: list[dict[str, Any]] = []
     raw_items = evidence_items if isinstance(evidence_items, list) else []
     for raw in raw_items:
@@ -159,14 +180,23 @@ def enrich_evidence(
         ev = dict(raw)
         ev.setdefault("type", "code")
         ev.setdefault("extractor", extractor)
+        ev.setdefault("extractor_version", GENERATOR_VERSION)
         ev.setdefault("deterministic", True)
         repo = str(ev.get("repo", "")) if ev.get("repo") else ""
         file = str(ev.get("file", "")) if ev.get("file") else ""
         file_rec = file_records.get((repo, file))
         repo_rec = repo_records.get(repo)
-        ev.setdefault("file_sha256", file_rec.get("sha256") if file_rec else None)
+        index_sha = file_rec.get("sha256") if file_rec else None
+        # Agreement guard: do not silently overwrite an extractor-provided hash;
+        # if it disagrees with the file index, surface a contradiction.
+        provided_sha = ev.get("file_sha256")
+        if provided_sha and index_sha and provided_sha != index_sha:
+            ev["verification_status"] = "contradicted"
+            stats["conflicts"] += 1
+        ev.setdefault("file_sha256", index_sha)
         ev.setdefault("commit_sha", repo_rec.get("git_commit") if repo_rec else None)
         ev.setdefault("snippet_sha256", snippet_hash(repo_records, ev))
+        ev.setdefault("dirty_worktree", repo_rec.get("dirty_worktree") if repo_rec else None)
         if ev.get("file_sha256"):
             stats["with_file_hash"] += 1
         if ev.get("commit_sha"):
@@ -269,12 +299,19 @@ def normalize_generic(
     kind: str,
     file_records: dict[tuple[str, str], dict[str, Any]],
     repo_records: dict[str, dict[str, Any]],
+    max_state: str | None = None,
 ) -> tuple[dict[str, Any], dict[str, int]]:
     item = dict(record)
     evidence, stats = evidence_for_record(item, file_records, repo_records, extractor=f"codeatlas.v2.{kind}")
     item["evidence"] = evidence
-    item["state"] = record_state(item, evidence)
+    state = record_state(item, evidence)
+    # Heuristic (e.g. regex-derived React) records can never claim `verified`.
+    if max_state == "inferred" and state == "verified":
+        state = "inferred"
+    item["state"] = state
     item["provenance"] = prov
+    if max_state == "inferred":
+        item["needs_review"] = True
     if "confidence" not in item:
         item["confidence"] = "high" if item["state"] == "verified" else "medium"
     if "needs_review" not in item:
@@ -316,7 +353,8 @@ def run() -> dict[str, Any]:
             elif kind == "graph_edge":
                 item, stats = normalize_edge(rec, prov, file_records, repo_records)
             else:
-                item, stats = normalize_generic(rec, prov, kind, file_records, repo_records)
+                max_state = "inferred" if kind in REGEX_KINDS else None
+                item, stats = normalize_generic(rec, prov, kind, file_records, repo_records, max_state=max_state)
             normalized.append(item)
             combine_stats(local_stats, stats)
             combine_stats(report["evidence_summary"], stats)

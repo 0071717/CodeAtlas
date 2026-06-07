@@ -101,6 +101,15 @@ def run_git(repo_path: Path, *args: str) -> str | None:
         return None
 
 
+def worktree_dirty(repo: "Repo") -> bool | None:
+    """Return True/False if the repo's worktree is dirty, or None if it is not a
+    git repo (so callers can distinguish "clean" from "unknown")."""
+    status = run_git(repo.path, "status", "--porcelain")
+    if status is None:
+        return None
+    return bool(status.strip())
+
+
 def simple_project_parser(text: str) -> dict[str, Any]:
     """Small fallback parser for the existing atlas/config/project.yaml shape."""
     repositories: dict[str, dict[str, Any]] = {}
@@ -506,11 +515,25 @@ def cmd_snapshot(_: argparse.Namespace) -> None:
                 "exists": repo.exists(),
                 "git_branch": run_git(repo.path, "rev-parse", "--abbrev-ref", "HEAD") if repo.exists() else None,
                 "git_commit": run_git(repo.path, "rev-parse", "HEAD") if repo.exists() else None,
+                "dirty_worktree": worktree_dirty(repo) if repo.exists() else None,
             }
         )
+    commits = [r.get("git_commit") for r in repo_records if r.get("git_commit")]
+    snapshot_doc = {
+        "generated_at": now(),
+        # indexed_commit is the single-repo convenience scalar; indexed_commits
+        # is the per-repo map for multi-repo projects. dirty_worktree is True if
+        # any repo had uncommitted changes when the snapshot was taken.
+        "indexed_commit": commits[0] if len(commits) == 1 else None,
+        "indexed_commits": {r["id"]: r.get("git_commit") for r in repo_records},
+        "dirty_worktree": any(bool(r.get("dirty_worktree")) for r in repo_records),
+        "repositories": repo_records,
+        "file_count": len(files),
+        "missing": missing,
+    }
     write(ATLAS / "source/file-hashes.yaml", {"generated_at": now(), "files": files})
     write(ATLAS / "index/file-index.yaml", {"generated_at": now(), "files": files})
-    write(ATLAS / "source/snapshot.yaml", {"generated_at": now(), "repositories": repo_records, "file_count": len(files), "missing": missing})
+    write(ATLAS / "source/snapshot.yaml", snapshot_doc)
     print("snapshot", len(files))
 
 
