@@ -6,6 +6,7 @@ python3 -m py_compile \
   atlas/tools/codeatlas_v2_canonical.py \
   atlas/tools/codeatlas_preflight_doctor.py \
   atlas/tools/validate_artifacts.py \
+  atlas/tools/codeatlas_trust_envelope.py \
   atlas/tools/codeatlas_graph_report.py \
   atlas/tools/codeatlas_graph_html.py \
   atlas/tools/codeatlas_query.py \
