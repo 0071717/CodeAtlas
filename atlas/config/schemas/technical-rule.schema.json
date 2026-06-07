@@ -45,7 +45,8 @@
       "enum": [
         "high",
         "medium",
-        "low"
+        "low",
+        "none"
       ]
     },
     "review_status": {

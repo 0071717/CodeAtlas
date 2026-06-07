@@ -100,8 +100,9 @@ def run_graph_report() -> int:
     return run_python(GRAPH_REPORT, [])
 
 
-def run_artifact_validation() -> int:
-    return run_python(ARTIFACT_VALIDATOR, [str(ATLAS)])
+def run_artifact_validation(strict: bool = False) -> int:
+    extra = ["--strict"] if strict else []
+    return run_python(ARTIFACT_VALIDATOR, [str(ATLAS), *extra])
 
 
 def run_no_mcp_memory() -> int:
@@ -137,11 +138,20 @@ def main() -> int:
             "no-mcp-memory",
         ],
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Fail closed: run artifact validation in strict mode (JSON Schema + missing-artifact + enum enforcement) and propagate its exit code.",
+    )
     args = parser.parse_args()
 
     if args.cmd == "doctor":
         code = run_python(DOCTOR, [])
         promote_yaml_json_to_json()
+        if args.strict:
+            run_trust_envelope()
+            validate_code = run_artifact_validation(strict=True)
+            return code or validate_code
         return code
     if args.cmd == "promote-json":
         promoted = promote_yaml_json_to_json()
@@ -154,7 +164,7 @@ def main() -> int:
         return run_graph_report()
     if args.cmd == "validate-artifacts":
         run_trust_envelope()
-        return run_artifact_validation()
+        return run_artifact_validation(strict=args.strict)
     if args.cmd == "capability-audit":
         run_trust_envelope()
         code = run_python(CAPABILITY_AUDIT, [])
@@ -178,7 +188,7 @@ def main() -> int:
     if args.cmd == "all" and code == 0:
         memory_code = run_no_mcp_memory()
         report_code = run_graph_report()
-        validate_code = run_artifact_validation()
+        validate_code = run_artifact_validation(strict=args.strict)
         return memory_code or report_code or validate_code
     return code
 

@@ -1,5 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codeatlas.dev/schemas/map-node.schema.json",
+  "$comment": "Trust fields (state, confidence, evidence, provenance) follow record-envelope.schema.json and are enforced by atlas/tools/validate_artifacts.py (which requires state/evidence/provenance on every graph node). Record-root additionalProperties is intentionally open until generator field sets are frozen (roadmap Phase 7/8).",
   "title": "CodeAtlasMapNode",
   "type": "object",
   "required": [
@@ -43,7 +45,8 @@
       "enum": [
         "high",
         "medium",
-        "low"
+        "low",
+        "none"
       ]
     },
     "state": {
@@ -169,5 +172,5 @@
       "type": "object"
     }
   },
-  "additionalProperties": false
+  "additionalProperties": true
 }

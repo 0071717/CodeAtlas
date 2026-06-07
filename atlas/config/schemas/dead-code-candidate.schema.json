@@ -33,7 +33,8 @@
       "enum": [
         "high",
         "medium",
-        "low"
+        "low",
+        "none"
       ]
     },
     "recommended_action": {

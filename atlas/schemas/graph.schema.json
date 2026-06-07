@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codeatlas.dev/schemas/graph.schema.json",
   "title": "CodeAtlas Graph",
   "type": "object",
   "required": ["generated_at"],
@@ -16,7 +17,7 @@
           "repo": { "type": "string" },
           "file": { "type": "string" },
           "name": { "type": "string" },
-          "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low", "none"] },
           "needs_review": { "type": "boolean" }
         },
         "additionalProperties": true
@@ -32,7 +33,7 @@
           "source": { "type": "string" },
           "target": { "type": "string" },
           "type": { "type": "string" },
-          "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low", "none"] },
           "needs_review": { "type": "boolean" }
         },
         "additionalProperties": true

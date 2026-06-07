@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+"""DEPRECATED legacy validator for the prompt-first layout.
+
+This script only checks that the legacy prompt-first artifacts (atlas/global,
+atlas/map, atlas/domains/<id>) exist and parse. It does NOT enforce schemas,
+the trust envelope, or fail-closed behaviour.
+
+The canonical validator for the V2 deterministic layout is
+``atlas/tools/validate_artifacts.py`` (run with ``--strict`` for fail-closed
+JSON Schema + trust-contract enforcement). Prefer that tool for any canonical
+workflow; this script is retained only for legacy prompt-first projects.
+"""
 
 import json
 import sys
@@ -145,6 +156,12 @@ def validate_all(root: Path) -> int:
 
 
 def main():
+    print(
+        "DEPRECATED: this validates the legacy prompt-first layout. The canonical "
+        "validator is atlas/tools/validate_artifacts.py (use --strict for fail-closed "
+        "schema enforcement).",
+        file=sys.stderr,
+    )
     root = Path(__file__).resolve().parents[2]
     if len(sys.argv) < 2:
         print("Usage: validate-artifacts.py <domain_id>|--all|--global|--map")
