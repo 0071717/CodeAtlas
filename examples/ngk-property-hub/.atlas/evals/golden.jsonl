@@ -1,0 +1,1 @@
+{"id":"property_search_endpoint","query":"What endpoint powers property search?","must_retrieve":["fact.api.property_search.endpoint"],"must_cite":["fact.api.property_search.endpoint"],"must_not_claim":["GraphQL"],"expected_trace":"trace.property_search.ui_to_api","expected_tests":[]}
