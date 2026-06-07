@@ -21,7 +21,7 @@ dev = [
 ngk = "ngk_framework.cli:main"
 
 [tool.setuptools]
-packages = ["ngk_framework", "ngk_orchestrator", "ngk_orchestrator.kiro", "ngk_orchestrator.engine"]
+packages = ["ngk_framework", "ngk_orchestrator", "ngk_orchestrator.kiro", "ngk_orchestrator.engine", "ngk_orchestrator.kiro_hooks"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
