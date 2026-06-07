@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
-"""Build no-MCP CodeAtlas context packs from local artifacts/read model."""
+"""Build no-MCP CodeAtlas context packs from local artifacts/read model.
+
+In strict mode this tool validates artifacts before writing any context pack. A
+context pack is a derived AI-facing view, so it must fail closed when canonical
+artifacts are invalid.
+"""
 from __future__ import annotations
 
 import argparse
 import json
 import re
 import sqlite3
+import subprocess
+import sys
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,10 +21,27 @@ from typing import Any
 ROOT = Path.cwd()
 ATLAS = ROOT / "atlas"
 DB = ATLAS / "knowledge" / "atlas.sqlite"
+VALIDATOR = ATLAS / "tools" / "validate_artifacts.py"
 
 
 def now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def run_strict_validation() -> int:
+    if not VALIDATOR.exists():
+        print(f"missing validator: {VALIDATOR}", file=sys.stderr)
+        return 1
+    return subprocess.run([sys.executable, str(VALIDATOR), str(ATLAS), "--strict"], cwd=ROOT).returncode
+
+
+def require_valid_if_strict(args: argparse.Namespace) -> int:
+    if getattr(args, "strict", False):
+        code = run_strict_validation()
+        if code:
+            print("strict validation failed; refusing to emit CodeAtlas context output", file=sys.stderr)
+        return code
+    return 0
 
 
 def slug(value: object) -> str:
@@ -30,7 +54,10 @@ def read(path: Path, default: Any) -> Any:
     for p in paths:
         if p.exists():
             try:
-                return json.loads(p.read_text(encoding="utf-8"))
+                data = json.loads(p.read_text(encoding="utf-8"))
+                if isinstance(data, dict) and "data" in data and "artifact_kind" in data:
+                    return data.get("data") or default
+                return data
             except Exception:
                 return default
     return default
@@ -158,146 +185,91 @@ def sqlite_selection(ids: list[str], limit: int) -> tuple[dict[str, dict[str, An
 
 
 def trace_edges(start: str, direction: str, depth: int, limit: int) -> list[dict[str, Any]]:
-    node_by_id, all_edges = graph()
-    by_source: dict[str, list[dict[str, Any]]] = {}
-    by_target: dict[str, list[dict[str, Any]]] = {}
-    for e in all_edges:
-        by_source.setdefault(str(e.get("source")), []).append(e)
-        by_target.setdefault(str(e.get("target")), []).append(e)
-    out: list[dict[str, Any]] = []
-    seen = {start}
+    _, edges = graph()
+    result: list[dict[str, Any]] = []
     queue = deque([(start, 0)])
-    while queue and len(out) < limit:
-        node, dist = queue.popleft()
-        if dist >= depth:
+    seen = {start}
+    while queue and len(result) < limit:
+        current, d = queue.popleft()
+        if d >= depth:
             continue
-        candidates = []
-        if direction in {"out", "both"}:
-            candidates += by_source.get(node, [])
-        if direction in {"in", "both"}:
-            candidates += by_target.get(node, [])
-        for edge in candidates:
-            out.append(edge)
-            nxt = edge.get("target") if edge.get("source") == node else edge.get("source")
-            if nxt and str(nxt) not in seen and str(nxt) in node_by_id:
-                seen.add(str(nxt))
-                queue.append((str(nxt), dist + 1))
-            if len(out) >= limit:
-                break
-    return out
+        for edge in edges:
+            source = str(edge.get("source"))
+            target = str(edge.get("target"))
+            match = (direction in {"out", "both"} and source == current) or (direction in {"in", "both"} and target == current)
+            if not match:
+                continue
+            result.append(edge)
+            nxt = target if source == current else source
+            if nxt and nxt not in seen:
+                seen.add(nxt)
+                queue.append((nxt, d + 1))
+    return result[:limit]
 
 
-def evidence(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    seen = set()
-    result = []
-    for item in items:
-        evs = list(item.get("evidence", [])) if isinstance(item, dict) else []
-        if isinstance(item, dict) and item.get("file"):
-            evs.append({"type": "code", "repo": item.get("repo"), "file": item.get("file")})
-        for ev in evs:
-            key = (ev.get("repo"), ev.get("file"), ev.get("line_start"), ev.get("line_end")) if isinstance(ev, dict) else None
-            if key and ev.get("file") and key not in seen:
-                seen.add(key)
-                result.append(ev)
-    return result
-
-
-def warnings_for(nodes: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
-    selected_files = {f"{n.get('repo')}:{n.get('file')}" for n in nodes if n.get("file")}
-    q = query.lower()
-    matched = []
-    for gap in gaps():
-        root = str(gap.get("import_root", "")).lower()
-        if root in q or selected_files & set(gap.get("example_files", [])):
-            matched.append(gap)
-    return (matched or gaps()[:3])[:8]
-
-
-def build(query: str, mode: str, limit: int, depth: int, direction: str) -> dict[str, Any]:
+def build(query: str, mode: str, limit: int, depth: int, direction: str = "both") -> dict[str, Any]:
     cards = search_cards(query, limit)
     ids = ids_from_cards(cards) or artifact_search(query, limit)
-    node_by_id, all_edges = graph()
     selected_nodes, selected_edges = sqlite_selection(ids, limit)
-
     if not selected_nodes:
-        for node_id in ids[:limit]:
-            if node_id in node_by_id:
-                selected_nodes[node_id] = node_by_id[node_id]
-        chosen = set(selected_nodes)
-        selected_edges = [e for e in all_edges if e.get("source") in chosen or e.get("target") in chosen][:limit * 5]
-        for e in selected_edges:
-            for endpoint in (e.get("source"), e.get("target")):
-                if endpoint in node_by_id:
-                    selected_nodes[str(endpoint)] = node_by_id[str(endpoint)]
-
-    if mode == "trace" and ids:
-        for e in trace_edges(ids[0], direction, depth, limit * 5):
-            selected_edges.append(e)
-            for endpoint in (e.get("source"), e.get("target")):
-                if endpoint in node_by_id:
-                    selected_nodes[str(endpoint)] = node_by_id[str(endpoint)]
-
-    if mode == "impact":
-        q = query.lower()
-        for node in node_by_id.values():
-            if q in str(node.get("file", "")).lower():
-                selected_nodes[str(node.get("id"))] = node
-        chosen = set(selected_nodes)
-        selected_edges += [e for e in all_edges if e.get("source") in chosen or e.get("target") in chosen][:limit * 5]
-
-    node_list = sorted(selected_nodes.values(), key=lambda n: str(n.get("id")))[:limit * 3]
-    edge_list = sorted({str(e.get("id")): e for e in selected_edges}.values(), key=lambda e: str(e.get("id")))[:limit * 5]
-    fact_list = [f for f in facts() if f.get("source_id") in selected_nodes or f.get("id") in selected_nodes][:limit]
-    flow_list = [f for f in flows() if any(nid in json.dumps(f) for nid in list(selected_nodes)[:10])][:limit]
-    warn = warnings_for(node_list, query)
-
+        selected_nodes, all_edges = graph()
+        selected_nodes = {k: v for k, v in selected_nodes.items() if k in ids[:limit]}
+        selected_edges = [e for e in all_edges if str(e.get("source")) in selected_nodes or str(e.get("target")) in selected_nodes][: limit * 5]
+    if mode == "trace":
+        traced = []
+        for node_id in ids[:5]:
+            traced += trace_edges(node_id, direction, depth, limit * 3)
+        selected_edges = traced or selected_edges
+    fs = facts()
+    fl = flows()
+    capability_gaps = gaps()
+    pack_id = f"{mode}.{slug(query)}"
     return {
-        "id": f"{mode}.{slug(query)}",
+        "id": pack_id,
+        "schema_version": "codeatlas.context-pack.v1",
         "generated_at": now(),
-        "query": query,
         "mode": mode,
+        "query": query,
         "mcp_required": False,
-        "read_model": {"used": DB.exists(), "path": str(DB) if DB.exists() else None},
+        "selected_cards": cards,
+        "selected_nodes": list(selected_nodes.values()),
+        "selected_edges": selected_edges,
+        "related_facts": fs[:limit],
+        "related_flows": fl[:limit],
+        "capability_gaps": capability_gaps[:limit],
         "selection_summary": {
-            "matched_card_count": len(cards),
-            "selected_node_count": len(node_list),
-            "selected_edge_count": len(edge_list),
-            "selected_fact_count": len(fact_list),
-            "selected_flow_count": len(flow_list),
-            "capability_warning_count": len(warn)
+            "cards": len(cards),
+            "nodes": len(selected_nodes),
+            "edges": len(selected_edges),
+            "facts": min(len(fs), limit),
+            "flows": min(len(fl), limit),
+            "capability_gaps": min(len(capability_gaps), limit),
         },
-        "selected_cards": [{"id": c.get("id"), "kind": c.get("kind"), "node_id": c.get("node_id"), "title": c.get("title"), "body": c.get("body")} for c in cards[:limit]],
-        "selected_nodes": node_list,
-        "selected_edges": edge_list,
-        "selected_facts": fact_list,
-        "selected_flows": flow_list,
-        "evidence": evidence(node_list + edge_list + fact_list + flow_list),
-        "capability_warnings": warn,
-        "known_unknowns": [{"type": "unsupported_library_binding", "import_root": w.get("import_root"), "risk": w.get("risk")} for w in warn],
         "llm_instructions": [
-            "Use this context pack before reading broad source files.",
-            "Do not infer semantics for unsupported libraries listed in capability_warnings.",
-            "If source code and Atlas disagree, source code wins.",
-            "Cite repo/file/line evidence when answering."
+            "Treat this pack as derived context, not source code authority.",
+            "Cite evidence IDs/paths from selected nodes, edges, facts, and flows when making claims.",
+            "Do not infer behaviour for unsupported capability gaps.",
+            "If the pack lacks evidence for a claim, say the claim is unknown or needs review.",
         ],
     }
 
 
 def write_markdown(pack: dict[str, Any], path: Path) -> None:
-    lines = [f"# CodeAtlas context pack: {pack['query']}", "", f"- mode: `{pack['mode']}`", f"- mcp_required: `{pack['mcp_required']}`", ""]
-    lines.append("## Selection summary")
-    for k, v in pack["selection_summary"].items():
-        lines.append(f"- {k}: {v}")
-    lines.append("\n## Selected nodes")
-    for n in pack["selected_nodes"][:30]:
-        lines.append(f"- `{n.get('id')}` ({n.get('type')}) — {n.get('repo')}:{n.get('file')}")
-    lines.append("\n## Selected edges")
-    for e in pack["selected_edges"][:50]:
-        lines.append(f"- `{e.get('source')}` --{e.get('type')}--> `{e.get('target')}`")
-    if pack["capability_warnings"]:
-        lines.append("\n## Capability warnings")
-        for w in pack["capability_warnings"]:
-            lines.append(f"- `{w.get('import_root')}` risk={w.get('risk')}")
+    lines = [f"# CodeAtlas context pack: {pack['query']}", "", f"Mode: `{pack['mode']}`", f"Generated: `{pack['generated_at']}`", "", "## Selection summary", ""]
+    for key, value in pack["selection_summary"].items():
+        lines.append(f"- {key}: {value}")
+    lines.append("\n## Nodes")
+    for node in pack["selected_nodes"][:30]:
+        lines.append(f"- `{node.get('id')}` {node.get('type')} {node.get('file') or node.get('path') or ''}")
+    lines.append("\n## Edges")
+    for edge in pack["selected_edges"][:50]:
+        lines.append(f"- `{edge.get('source')}` -[{edge.get('type')}]-> `{edge.get('target')}` confidence={edge.get('confidence')}")
+    lines.append("\n## Facts")
+    for fact in pack["related_facts"][:30]:
+        lines.append(f"- `{fact.get('id')}` {fact.get('statement')}")
+    lines.append("\n## Capability gaps")
+    for w in pack["capability_gaps"][:30]:
+        lines.append(f"- `{w.get('import_root')}` risk={w.get('risk')}")
     lines.append("\n## LLM instructions")
     lines += [f"- {x}" for x in pack["llm_instructions"]]
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -305,6 +277,9 @@ def write_markdown(pack: dict[str, Any], path: Path) -> None:
 
 
 def emit(args: argparse.Namespace, mode: str) -> int:
+    validation_code = require_valid_if_strict(args)
+    if validation_code:
+        return validation_code
     pack = build(args.query, mode, args.limit, args.depth, getattr(args, "direction", "both"))
     out = ATLAS / "context-packs"
     json_path = out / f"{pack['id']}.json"
@@ -321,20 +296,43 @@ def emit(args: argparse.Namespace, mode: str) -> int:
 
 
 def search(args: argparse.Namespace) -> int:
+    validation_code = require_valid_if_strict(args)
+    if validation_code:
+        return validation_code
     matches = search_cards(args.query, args.limit) if DB.exists() else [{"id": x} for x in artifact_search(args.query, args.limit)]
     print(json.dumps({"query": args.query, "matches": matches}, indent=2, sort_keys=True) if args.json else "\n".join(str(m.get("id")) for m in matches))
     return 0 if matches else 1
 
 
+def ready(args: argparse.Namespace) -> int:
+    validation_code = require_valid_if_strict(args)
+    payload = {
+        "status": "ok" if validation_code == 0 else "error",
+        "strict": bool(getattr(args, "strict", False)),
+        "database_exists": DB.exists(),
+        "context_pack_dir": str(ATLAS / "context-packs"),
+    }
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return validation_code
+
+
+def add_common_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--limit", type=int, default=20)
+    parser.add_argument("--depth", type=int, default=3)
+    parser.add_argument("--json", action="store_true")
+    parser.add_argument("--strict", action="store_true", help="Validate artifacts before reading/writing context output")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build no-MCP CodeAtlas context packs.")
     sub = parser.add_subparsers(dest="cmd", required=True)
+    ready_parser = sub.add_parser("ready")
+    ready_parser.add_argument("--strict", action="store_true", help="Validate artifacts and report context-pack readiness")
+    ready_parser.set_defaults(func=ready)
     for name in ["search", "build", "trace", "impact"]:
         p = sub.add_parser(name)
         p.add_argument("query")
-        p.add_argument("--limit", type=int, default=20)
-        p.add_argument("--depth", type=int, default=3)
-        p.add_argument("--json", action="store_true")
+        add_common_args(p)
         if name == "trace":
             p.add_argument("--direction", choices=["in", "out", "both"], default="both")
         p.set_defaults(func=search if name == "search" else (lambda args, mode=name: emit(args, mode)))
