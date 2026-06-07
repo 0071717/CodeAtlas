@@ -37,6 +37,8 @@ docs/LAYER_BUILD_CONTRACT.md
 docs/KIRO_FRAMEWORK_IMPLEMENTATION_GUIDE.md
 docs/NGK_ECOSYSTEM_HARDENING_PLAN.md
 docs/NGK_TRACE_VISUAL_FLOW_EXPLORER.md
+docs/CODEX_ATLAS_NGK_ENGINE_HANDOFF.md
+docs/NGK_GENERATED_FRAMEWORK_BUNDLE_MANIFEST.md
 docs/TOOL_SUITE_V2.md
 docs/GRAPHIFY_PATTERNS_ADOPTED.md
 docs/REPO_CLEANUP_AUDIT.md
@@ -61,7 +63,32 @@ source/provenance
 → testing/coverage
 → normalized knowledge
 → verification/challenge
-→ downstream tools such as ngk trace
+→ downstream tools such as ngk trace, ngk impact, ngk verify-answer, ngk review, and ngk smart
+```
+
+## Trusted ngk engine direction
+
+The new trusted-engine direction is captured in:
+
+```text
+docs/CODEX_ATLAS_NGK_ENGINE_HANDOFF.md
+```
+
+The implementation priority is:
+
+```text
+1. evidence contract and validators
+2. citation/source-span index
+3. drift detection
+4. deterministic graph engine
+5. UI/API impact analyzers
+6. test selection
+7. Kiro context packs
+8. ngk verify-answer
+9. eval suite
+10. Atlas-native review
+11. contract checks
+12. smart terminal integration
 ```
 
 ## What not to do first
@@ -119,56 +146,4 @@ If source code conflicts with Atlas artifacts, source code wins. Mark Atlas stal
 
 ## When building new framework pieces
 
-Use bounded tasks. For each task define:
-
-```text
-goal
-inputs
-outputs
-schema
-builder
-validator
-acceptance criteria
-known limitations
-follow-up tasks
-```
-
-## Current high-priority implementation gaps
-
-```text
-TypeScript AST / ts-morph frontend extraction
-FastAPI router/dependency materialisation
-OpenSearch Query DSL reconstruction
-explicit Python/React error-flow extraction
-symbol-level drift planning
-SQLite/DuckDB/Kuzu derived read models
-```
-
-Do not spend effort on high-level requirements generation until these foundations are stronger.
-
-## Useful commands
-
-```bash
-python3 atlas/tools/codeatlas_v2_canonical.py doctor
-python3 atlas/tools/codeatlas_v2_canonical.py all
-python3 atlas/tools/codeatlas_v2_canonical.py validate
-python3 atlas/tools/codeatlas_v2_canonical.py validate-artifacts
-python3 atlas/tools/codeatlas_v2_canonical.py graph-report
-python3 atlas/tools/codeatlas_v2_canonical.py drift-check
-python3 atlas/tools/codeatlas_query.py query "claims endpoint"
-python3 atlas/tools/codeatlas_query.py explain "POST /claims"
-python3 atlas/tools/codeatlas_query.py path "claims route" "claims endpoint"
-python3 atlas/tools/ngk_trace_regraph_exporter.py "POST /claims"
-```
-
-## Done means
-
-A framework task is done when:
-
-```text
-outputs are deterministic where possible
-validation can be run
-limitations are documented
-changelog is updated
-next targeted task is clear
-```
+Prefer adding deterministic artifact producers, validators, and read models before adding new AI prompts. AI prompts should consume Atlas artifacts and cite fact IDs, not replace deterministic extraction.
