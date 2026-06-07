@@ -66,7 +66,13 @@
       "items": {
         "type": "object",
         "required": [
-          "type"
+          "type",
+          "file_sha256",
+          "commit_sha",
+          "snippet_sha256",
+          "extractor",
+          "deterministic",
+          "verification_status"
         ],
         "properties": {
           "type": {
