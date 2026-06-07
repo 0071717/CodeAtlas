@@ -261,7 +261,7 @@ def main() -> int:
     write_json(out_dir / "graph.json", {"generated_at": summary["generated_at"], "nodes": nodes, "edges": edges})
     (out_dir / "GRAPH_REPORT.md").write_text(build_markdown(summary), encoding="utf-8")
     print(f"graph-report nodes={summary['node_count']} edges={summary['edge_count']} broken={summary['broken_edge_count']}")
-    return 0 if summary["status"] == "ok" else 1
+    return 0 if summary["broken_edge_count"] == 0 else 1
 
 
 if __name__ == "__main__":
