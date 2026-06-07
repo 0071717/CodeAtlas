@@ -6,6 +6,8 @@ CodeAtlas is a deterministic-first framework for reverse-engineering mature code
 
 > **A deterministic-first code evidence compiler and AI-grounding orchestrator.**
 
+> **CodeAtlas is not another coding agent. It is the evidence boundary that coding agents operate inside.**
+
 > **CodeAtlas should be the thing AI agents must cite, obey, and be limited by — not because it knows everything, but because it knows exactly what is verified, what is inferred, what is stale, what is unsupported, and what is unknown.**
 
 CodeAtlas is not trying to be an omniscient AI that magically understands a whole software system. Its purpose is to compile source code and adjacent engineering evidence into a trust-aware knowledge layer that separates verified facts from inferred, partial, stale, contradicted, unsupported, and unknown claims.
