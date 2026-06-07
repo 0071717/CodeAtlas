@@ -3,11 +3,17 @@
 
 JSON/YAML artifacts remain canonical. `atlas/knowledge/atlas.sqlite` is a fast
 local query layer for `ngk`, Kiro wrappers, and context-pack generation.
+
+In strict mode this compiler validates artifacts before touching the database.
+If validation fails, it exits non-zero and leaves any existing read model intact.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import sqlite3
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -15,10 +21,18 @@ from typing import Any
 ROOT = Path.cwd()
 ATLAS = ROOT / "atlas"
 DB = ATLAS / "knowledge" / "atlas.sqlite"
+VALIDATOR = ATLAS / "tools" / "validate_artifacts.py"
 
 
 def now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def run_strict_validation() -> int:
+    if not VALIDATOR.exists():
+        print(f"missing validator: {VALIDATOR}", file=sys.stderr)
+        return 1
+    return subprocess.run([sys.executable, str(VALIDATOR), str(ATLAS), "--strict"], cwd=ROOT).returncode
 
 
 def candidates(path: Path) -> list[Path]:
@@ -33,7 +47,10 @@ def read(path: Path, default: Any) -> Any:
     for candidate in candidates(path):
         if candidate.exists():
             try:
-                return json.loads(candidate.read_text(encoding="utf-8"))
+                data = json.loads(candidate.read_text(encoding="utf-8"))
+                if isinstance(data, dict) and "data" in data and "artifact_kind" in data:
+                    return data.get("data") or default
+                return data
             except Exception:
                 return default
     return default
@@ -121,7 +138,7 @@ def node_text(node: dict[str, Any]) -> str:
     return " ".join(str(x) for x in parts if x)
 
 
-def main() -> int:
+def compile_read_model(strict: bool) -> int:
     nodes, edges = load_nodes_edges()
     facts = load_facts()
     flows = load_flows()
@@ -150,6 +167,7 @@ def main() -> int:
     conn.execute("INSERT INTO metadata VALUES (?, ?)", ("generated_at", generated))
     conn.execute("INSERT INTO metadata VALUES (?, ?)", ("mcp_required", "false"))
     conn.execute("INSERT INTO metadata VALUES (?, ?)", ("source_of_truth", "atlas JSON/YAML artifacts"))
+    conn.execute("INSERT INTO metadata VALUES (?, ?)", ("strict_mode", "true" if strict else "false"))
 
     seen: set[str] = set()
     for node in nodes:
@@ -229,6 +247,7 @@ def main() -> int:
     report = {
         "generated_at": generated,
         "status": "ok",
+        "strict": strict,
         "mcp_required": False,
         "database": str(DB),
         "source_of_truth": "atlas JSON/YAML artifacts",
@@ -244,6 +263,19 @@ def main() -> int:
     write(ATLAS / "knowledge" / "sqlite-compile-report.json", report)
     print("read-model", report["database"], f"nodes={counts['nodes']}", f"edges={counts['edges']}", f"cards={counts['cards']}", f"fts={fts}")
     return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Compile CodeAtlas artifacts into a no-MCP SQLite read model.")
+    parser.add_argument("--strict", action="store_true", help="Validate artifacts before writing atlas/knowledge/atlas.sqlite")
+    args = parser.parse_args()
+
+    if args.strict:
+        code = run_strict_validation()
+        if code:
+            print("strict validation failed; refusing to write atlas/knowledge/atlas.sqlite", file=sys.stderr)
+            return code
+    return compile_read_model(strict=args.strict)
 
 
 if __name__ == "__main__":
