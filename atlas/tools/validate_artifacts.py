@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Validate generated CodeAtlas artifacts without external dependencies.
 
-This is a lightweight validation pass inspired by graph-first tooling practices:
-parse every generated machine artifact, check graph links, check flow step links,
-and emit one reviewable JSON report. It does not replace future JSON Schema
-validation, but it gives Kiro/ngk an immediate deterministic gate.
+This pass now covers the trust-core contract for canonical facts and graph edges
+in addition to parseability, graph links, and flow step links. It intentionally
+implements only the small CodeAtlas schema subset needed by the generated
+artifacts so the validator remains dependency-free in restricted environments.
 """
 from __future__ import annotations
 
@@ -43,6 +43,26 @@ EXPECTED_CORE = [
     ("graph/nodes", "nodes"),
     ("graph/edges", "edges"),
 ]
+
+CONFIDENCE_VALUES = {"high", "medium", "low"}
+STATE_VALUES = {"verified", "inferred", "unsupported", "stale", "contradicted", "partial", "unknown"}
+REVIEW_STATUS_VALUES = {"unreviewed", "accepted", "rejected", "needs_clarification", "superseded"}
+EDGE_TYPES = {
+    "OWNS",
+    "CONTAINS",
+    "IMPLEMENTS",
+    "CALLS",
+    "MAPS_TO",
+    "VALIDATES",
+    "REQUIRES_PERMISSION",
+    "RETURNS",
+    "RAISES_ERROR",
+    "DERIVED_FROM",
+    "EVIDENCED_BY",
+    "AFFECTS",
+    "CONTRADICTS",
+    "TESTS",
+}
 
 
 def now() -> str:
@@ -154,6 +174,94 @@ def check_flow_links(atlas: Path, findings: list[dict[str, Any]]) -> None:
                     findings.append({"severity": "warning", "type": "flow_step_unknown_node", "flow": flow.get("id"), "node": node, "artifact": f"atlas/{stem}.json"})
 
 
+def require_field(record: dict[str, Any], field: str, typ: type | tuple[type, ...], artifact: str, record_id: str, findings: list[dict[str, Any]]) -> None:
+    if field not in record:
+        findings.append({"severity": "error", "type": "schema_missing_required", "artifact": artifact, "record": record_id, "field": field})
+        return
+    if not isinstance(record[field], typ):
+        findings.append({"severity": "error", "type": "schema_invalid_type", "artifact": artifact, "record": record_id, "field": field, "expected": getattr(typ, "__name__", str(typ))})
+
+
+def check_provenance(record: dict[str, Any], artifact: str, record_id: str, findings: list[dict[str, Any]]) -> None:
+    prov = record.get("provenance")
+    if not isinstance(prov, dict):
+        findings.append({"severity": "error", "type": "schema_missing_provenance", "artifact": artifact, "record": record_id})
+        return
+    for field in ["schema_version", "generated_at", "generator", "generator_version", "input_artifact_sha256", "source_manifest_sha256"]:
+        if not prov.get(field):
+            findings.append({"severity": "error", "type": "schema_invalid_provenance", "artifact": artifact, "record": record_id, "field": field})
+
+
+def check_evidence(record: dict[str, Any], artifact: str, record_id: str, findings: list[dict[str, Any]]) -> None:
+    evidence = record.get("evidence")
+    if not isinstance(evidence, list):
+        findings.append({"severity": "error", "type": "schema_invalid_evidence", "artifact": artifact, "record": record_id})
+        return
+    if not evidence:
+        findings.append({"severity": "warning", "type": "schema_empty_evidence", "artifact": artifact, "record": record_id})
+        return
+    for index, ev in enumerate(evidence):
+        if not isinstance(ev, dict):
+            findings.append({"severity": "error", "type": "schema_invalid_evidence_item", "artifact": artifact, "record": record_id, "index": index})
+            continue
+        if ev.get("type") == "code" and ev.get("repo") and ev.get("file"):
+            if not ev.get("file_sha256"):
+                findings.append({"severity": "error", "type": "evidence_missing_file_hash", "artifact": artifact, "record": record_id, "index": index})
+            if "line_start" in ev and "line_end" in ev and not ev.get("snippet_sha256"):
+                findings.append({"severity": "warning", "type": "evidence_missing_snippet_hash", "artifact": artifact, "record": record_id, "index": index})
+            if "commit_sha" not in ev:
+                findings.append({"severity": "warning", "type": "evidence_missing_commit_sha", "artifact": artifact, "record": record_id, "index": index})
+
+
+def check_trust_contracts(atlas: Path, findings: list[dict[str, Any]]) -> None:
+    facts_doc = read_first_json(atlas, "facts/technical-facts", findings)
+    if isinstance(facts_doc, dict) and "technical_facts" in facts_doc:
+        seen: set[str] = set()
+        for fact in facts_doc.get("technical_facts", []):
+            if not isinstance(fact, dict):
+                findings.append({"severity": "error", "type": "technical_fact_not_object", "artifact": "atlas/facts/technical-facts.json"})
+                continue
+            record_id = str(fact.get("id") or "<missing>")
+            if record_id in seen:
+                findings.append({"severity": "error", "type": "duplicate_technical_fact_id", "id": record_id})
+            seen.add(record_id)
+            for field in ["id", "domain", "source_type", "statement", "confidence", "state"]:
+                require_field(fact, field, str, "atlas/facts/technical-facts.json", record_id, findings)
+            require_field(fact, "provenance", dict, "atlas/facts/technical-facts.json", record_id, findings)
+            require_field(fact, "evidence", list, "atlas/facts/technical-facts.json", record_id, findings)
+            if isinstance(fact.get("confidence"), str) and fact.get("confidence") not in CONFIDENCE_VALUES:
+                findings.append({"severity": "error", "type": "schema_invalid_enum", "artifact": "atlas/facts/technical-facts.json", "record": record_id, "field": "confidence", "value": fact.get("confidence")})
+            if isinstance(fact.get("state"), str) and fact.get("state") not in STATE_VALUES:
+                findings.append({"severity": "error", "type": "schema_invalid_enum", "artifact": "atlas/facts/technical-facts.json", "record": record_id, "field": "state", "value": fact.get("state")})
+            if fact.get("review_status") and fact.get("review_status") not in REVIEW_STATUS_VALUES:
+                findings.append({"severity": "error", "type": "schema_invalid_enum", "artifact": "atlas/facts/technical-facts.json", "record": record_id, "field": "review_status", "value": fact.get("review_status")})
+            check_provenance(fact, "atlas/facts/technical-facts.json", record_id, findings)
+            check_evidence(fact, "atlas/facts/technical-facts.json", record_id, findings)
+
+    edges_doc = read_first_json(atlas, "graph/edges", findings)
+    if isinstance(edges_doc, dict) and "edges" in edges_doc:
+        seen_edges: set[str] = set()
+        for edge in edges_doc.get("edges", []):
+            if not isinstance(edge, dict):
+                continue
+            record_id = str(edge.get("id") or "<missing>")
+            if record_id in seen_edges:
+                findings.append({"severity": "error", "type": "duplicate_edge_id", "id": record_id})
+            seen_edges.add(record_id)
+            for field in ["id", "source", "target", "type", "confidence", "state"]:
+                require_field(edge, field, str, "atlas/graph/edges.json", record_id, findings)
+            require_field(edge, "provenance", dict, "atlas/graph/edges.json", record_id, findings)
+            require_field(edge, "evidence", list, "atlas/graph/edges.json", record_id, findings)
+            if isinstance(edge.get("type"), str) and edge.get("type") not in EDGE_TYPES:
+                findings.append({"severity": "error", "type": "schema_invalid_enum", "artifact": "atlas/graph/edges.json", "record": record_id, "field": "type", "value": edge.get("type")})
+            if isinstance(edge.get("confidence"), str) and edge.get("confidence") not in CONFIDENCE_VALUES:
+                findings.append({"severity": "error", "type": "schema_invalid_enum", "artifact": "atlas/graph/edges.json", "record": record_id, "field": "confidence", "value": edge.get("confidence")})
+            if isinstance(edge.get("state"), str) and edge.get("state") not in STATE_VALUES:
+                findings.append({"severity": "error", "type": "schema_invalid_enum", "artifact": "atlas/graph/edges.json", "record": record_id, "field": "state", "value": edge.get("state")})
+            check_provenance(edge, "atlas/graph/edges.json", record_id, findings)
+            check_evidence(edge, "atlas/graph/edges.json", record_id, findings)
+
+
 def write_report(atlas: Path, findings: list[dict[str, Any]], parseable_count: int) -> None:
     error_count = sum(1 for f in findings if f.get("severity") == "error")
     warning_count = sum(1 for f in findings if f.get("severity") == "warning")
@@ -188,6 +296,7 @@ def main() -> int:
     check_expected_core(atlas, findings)
     check_graph_links(atlas, findings)
     check_flow_links(atlas, findings)
+    check_trust_contracts(atlas, findings)
     write_report(atlas, findings, parseable_count)
     return 1 if any(f.get("severity") == "error" for f in findings) else 0
 
