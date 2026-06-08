@@ -2,149 +2,100 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://codeatlas.dev/schemas/record-envelope.schema.json",
   "title": "CodeAtlas Record Envelope (shared trust contract)",
-  "description": "The trust contract every canonical record collection must satisfy. It is enforced programmatically by atlas/tools/validate_artifacts.py in addition to each family schema, so the contract lives in exactly one place. Family schemas reference this file via a $comment. confidence is optional here (some structural collections do not carry it) but must be one of the allowed values when present; state, evidence, and provenance are always required.",
+  "description": "The trust contract every canonical record collection must satisfy. The Phase 01 evidence/provenance fields are enforced here and programmatically by atlas/tools/validate_artifacts.py.",
   "type": "object",
-  "required": [
-    "state",
-    "evidence",
-    "provenance"
-  ],
+  "required": ["state", "evidence", "provenance"],
   "properties": {
-    "id": {
-      "type": "string"
-    },
-    "state": {
-      "enum": [
-        "verified",
-        "inferred",
-        "unsupported",
-        "stale",
-        "contradicted",
-        "partial",
-        "unknown"
-      ]
-    },
-    "confidence": {
-      "enum": [
-        "high",
-        "medium",
-        "low",
-        "none"
-      ]
-    },
-    "needs_review": {
-      "type": "boolean"
-    },
+    "id": {"type": "string"},
+    "state": {"enum": ["verified", "inferred", "unsupported", "stale", "contradicted", "partial", "unknown"]},
+    "confidence": {"enum": ["high", "medium", "low", "none"]},
+    "needs_review": {"type": "boolean"},
     "evidence": {
       "type": "array",
       "items": {
         "type": "object",
         "required": [
-          "type",
-          "file_sha256",
-          "commit_sha",
-          "snippet_sha256",
+          "evidence_id",
+          "evidence_kind",
           "extractor",
           "deterministic",
           "verification_status"
         ],
         "properties": {
-          "type": {
-            "type": "string"
+          "evidence_id": {"type": "string"},
+          "evidence_kind": {"enum": ["source_span", "openapi_operation", "test_definition", "test_result", "runtime_trace", "git_history", "config_value", "generated_artifact", "human_review", "llm_finding", "external_finding"]},
+          "type": {"type": "string"},
+          "repo": {"type": "string"},
+          "file": {"type": ["string", "null"]},
+          "file_path": {"type": ["string", "null"]},
+          "symbol": {"type": "string"},
+          "line_start": {"type": ["integer", "null"], "minimum": 1},
+          "line_end": {"type": ["integer", "null"], "minimum": 1},
+          "start_col": {"type": ["integer", "null"], "minimum": 1},
+          "end_col": {"type": ["integer", "null"], "minimum": 1},
+          "span": {
+            "type": "object",
+            "required": ["start_line", "end_line", "start_col", "end_col"],
+            "properties": {
+              "start_line": {"type": ["integer", "null"], "minimum": 1},
+              "end_line": {"type": ["integer", "null"], "minimum": 1},
+              "start_col": {"type": ["integer", "null"], "minimum": 1},
+              "end_col": {"type": ["integer", "null"], "minimum": 1}
+            },
+            "additionalProperties": false
           },
-          "repo": {
-            "type": "string"
-          },
-          "file": {
-            "type": "string"
-          },
-          "symbol": {
-            "type": "string"
-          },
-          "line_start": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "line_end": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "commit_sha": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "file_sha256": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "snippet_sha256": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
+          "source_commit": {"type": ["string", "null"]},
+          "commit_sha": {"type": ["string", "null"]},
+          "file_hash": {"type": ["string", "null"]},
+          "file_sha256": {"type": ["string", "null"]},
+          "snippet_hash": {"type": ["string", "null"]},
+          "snippet_sha256": {"type": ["string", "null"]},
           "extractor": {
-            "type": "string"
+            "type": "object",
+            "required": ["id", "version", "kind"],
+            "properties": {
+              "id": {"type": "string"},
+              "version": {"type": "string"},
+              "kind": {"type": "string"},
+              "command": {"type": "string"}
+            },
+            "additionalProperties": true
           },
-          "deterministic": {
-            "type": "boolean"
-          },
-          "verification_status": {
-            "enum": [
-              "current",
-              "unresolved",
-              "stale",
-              "contradicted"
-            ]
-          },
-          "metadata": {
-            "type": "object"
-          }
+          "extractor_id": {"type": "string"},
+          "extractor_version": {"type": "string"},
+          "extractor_kind": {"type": "string"},
+          "deterministic": {"type": "boolean"},
+          "verification_status": {"enum": ["current", "unresolved", "stale", "contradicted"]},
+          "metadata": {"type": "object"}
         },
         "additionalProperties": true
       }
     },
     "provenance": {
       "type": "object",
-      "required": [
-        "schema_version",
-        "generated_at",
-        "generator",
-        "generator_version",
-        "input_artifact_sha256",
-        "source_manifest_sha256"
-      ],
+      "required": ["schema_version", "generated_at", "generator", "input_artifact_sha256", "source_manifest_sha256"],
       "properties": {
-        "schema_version": {
-          "type": "string"
-        },
-        "generated_at": {
-          "type": "string"
-        },
+        "schema_version": {"type": "string"},
+        "generated_at": {"type": "string"},
         "generator": {
-          "type": "string"
+          "type": "object",
+          "required": ["id", "version", "command"],
+          "properties": {
+            "id": {"type": "string"},
+            "version": {"type": "string"},
+            "command": {"type": "string"}
+          },
+          "additionalProperties": true
         },
-        "generator_version": {
-          "type": "string"
-        },
-        "input_artifact": {
-          "type": "string"
-        },
-        "input_artifact_sha256": {
-          "type": "string"
-        },
-        "source_manifest_sha256": {
-          "type": "string"
-        },
-        "metadata": {
-          "type": "object"
-        }
+        "generator_id": {"type": "string"},
+        "generator_version": {"type": "string"},
+        "generator_command": {"type": "string"},
+        "input_artifact": {"type": ["string", "null"]},
+        "input_artifact_sha256": {"type": "string"},
+        "source_manifest_sha256": {"type": "string"},
+        "metadata": {"type": "object"}
       },
-      "additionalProperties": false
+      "additionalProperties": true
     }
   },
   "additionalProperties": true
