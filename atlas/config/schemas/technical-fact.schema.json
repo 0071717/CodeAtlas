@@ -1,201 +1,28 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://codeatlas.dev/schemas/technical-fact.schema.json",
-  "$comment": "Trust fields (state, confidence, evidence, provenance) follow record-envelope.schema.json and are enforced by atlas/tools/validate_artifacts.py. Record-root additionalProperties is intentionally open until generator field sets are frozen (roadmap Phase 7/8).",
+  "$comment": "Trust fields are enforced by record-envelope.schema.json and atlas/tools/validate_artifacts.py. This family schema validates the fact-specific shape only.",
   "title": "CodeAtlasTechnicalFact",
   "type": "object",
-  "required": [
-    "id",
-    "domain",
-    "source_type",
-    "statement",
-    "confidence",
-    "state",
-    "evidence",
-    "provenance"
-  ],
+  "required": ["id", "domain", "source_type", "statement", "confidence", "state", "evidence", "provenance"],
   "properties": {
-    "id": {
-      "type": "string",
-      "description": "Stable fact ID, e.g. fact.knowledge.search.requires_set_access"
-    },
-    "domain": {
-      "type": "string"
-    },
-    "source_type": {
-      "type": "string",
-      "description": "validation, permission, service_condition, data_access, ui_state, error_condition, state_transition, side_effect, contract, endpoint, schema, service, api_client, route"
-    },
-    "type": {
-      "type": "string",
-      "description": "Legacy/source collection type retained for reader compatibility; source_type is canonical."
-    },
-    "claim_type": {
-      "type": "string"
-    },
-    "statement": {
-      "type": "string"
-    },
-    "source_id": {
-      "type": "string"
-    },
-    "repo": {
-      "type": "string"
-    },
-    "file": {
-      "type": "string"
-    },
-    "derived_from": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "evidence": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": [
-          "type",
-          "file_sha256",
-          "commit_sha",
-          "snippet_sha256",
-          "extractor",
-          "deterministic",
-          "verification_status"
-        ],
-        "properties": {
-          "type": {
-            "type": "string"
-          },
-          "repo": {
-            "type": "string"
-          },
-          "file": {
-            "type": "string"
-          },
-          "symbol": {
-            "type": "string"
-          },
-          "line_start": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "line_end": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "commit_sha": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "file_sha256": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "snippet_sha256": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "extractor": {
-            "type": "string"
-          },
-          "deterministic": {
-            "type": "boolean"
-          },
-          "verification_status": {
-            "enum": [
-              "current",
-              "unresolved",
-              "stale",
-              "contradicted"
-            ]
-          },
-          "metadata": {
-            "type": "object"
-          }
-        },
-        "additionalProperties": true
-      }
-    },
-    "confidence": {
-      "enum": [
-        "high",
-        "medium",
-        "low",
-        "none"
-      ]
-    },
-    "state": {
-      "enum": [
-        "verified",
-        "inferred",
-        "unsupported",
-        "stale",
-        "contradicted",
-        "partial",
-        "unknown"
-      ]
-    },
-    "needs_review": {
-      "type": "boolean"
-    },
-    "review_status": {
-      "enum": [
-        "unreviewed",
-        "accepted",
-        "rejected",
-        "needs_clarification",
-        "superseded"
-      ]
-    },
-    "provenance": {
-      "type": "object",
-      "required": [
-        "schema_version",
-        "generated_at",
-        "generator",
-        "generator_version",
-        "input_artifact_sha256",
-        "source_manifest_sha256"
-      ],
-      "properties": {
-        "schema_version": {
-          "type": "string"
-        },
-        "generated_at": {
-          "type": "string"
-        },
-        "generator": {
-          "type": "string"
-        },
-        "generator_version": {
-          "type": "string"
-        },
-        "input_artifact": {
-          "type": "string"
-        },
-        "input_artifact_sha256": {
-          "type": "string"
-        },
-        "source_manifest_sha256": {
-          "type": "string"
-        },
-        "metadata": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    "metadata": {
-      "type": "object"
-    }
+    "id": {"type": "string"},
+    "domain": {"type": "string"},
+    "source_type": {"type": "string"},
+    "type": {"type": "string"},
+    "claim_type": {"type": "string"},
+    "statement": {"type": "string"},
+    "source_id": {"type": ["string", "null"]},
+    "repo": {"type": ["string", "null"]},
+    "file": {"type": ["string", "null"]},
+    "derived_from": {"type": "array", "items": {"type": "string"}},
+    "evidence": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+    "confidence": {"enum": ["high", "medium", "low", "none"]},
+    "state": {"enum": ["verified", "inferred", "unsupported", "stale", "contradicted", "partial", "unknown"]},
+    "needs_review": {"type": "boolean"},
+    "review_status": {"enum": ["unreviewed", "accepted", "rejected", "needs_clarification", "superseded"]},
+    "provenance": {"type": "object", "additionalProperties": true},
+    "metadata": {"type": "object"}
   },
   "additionalProperties": true
 }
