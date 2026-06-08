@@ -1,183 +1,21 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://codeatlas.dev/schemas/map-edge.schema.json",
-  "$comment": "Trust fields (state, confidence, evidence, provenance) follow record-envelope.schema.json and are enforced by atlas/tools/validate_artifacts.py. Record-root additionalProperties is intentionally open until generator field sets are frozen (roadmap Phase 7/8).",
+  "$comment": "Trust fields are enforced by record-envelope.schema.json and atlas/tools/validate_artifacts.py. This family schema validates the edge-specific shape only.",
   "title": "CodeAtlasMapEdge",
   "type": "object",
-  "required": [
-    "id",
-    "source",
-    "target",
-    "type",
-    "confidence",
-    "state",
-    "evidence",
-    "provenance"
-  ],
+  "required": ["id", "source", "target", "type", "confidence", "state", "evidence", "provenance"],
   "properties": {
-    "id": {
-      "type": "string"
-    },
-    "source": {
-      "type": "string"
-    },
-    "target": {
-      "type": "string"
-    },
-    "type": {
-      "enum": [
-        "OWNS",
-        "CONTAINS",
-        "IMPLEMENTS",
-        "CALLS",
-        "MAPS_TO",
-        "VALIDATES",
-        "REQUIRES_PERMISSION",
-        "RETURNS",
-        "RAISES_ERROR",
-        "DERIVED_FROM",
-        "EVIDENCED_BY",
-        "AFFECTS",
-        "CONTRADICTS",
-        "TESTS"
-      ]
-    },
-    "confidence": {
-      "enum": [
-        "high",
-        "medium",
-        "low",
-        "none"
-      ]
-    },
-    "state": {
-      "enum": [
-        "verified",
-        "inferred",
-        "unsupported",
-        "stale",
-        "contradicted",
-        "partial",
-        "unknown"
-      ]
-    },
-    "needs_review": {
-      "type": "boolean"
-    },
-    "evidence": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": [
-          "type",
-          "file_sha256",
-          "commit_sha",
-          "snippet_sha256",
-          "extractor",
-          "deterministic",
-          "verification_status"
-        ],
-        "properties": {
-          "type": {
-            "type": "string"
-          },
-          "repo": {
-            "type": "string"
-          },
-          "file": {
-            "type": "string"
-          },
-          "symbol": {
-            "type": "string"
-          },
-          "line_start": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "line_end": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "commit_sha": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "file_sha256": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "snippet_sha256": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "extractor": {
-            "type": "string"
-          },
-          "deterministic": {
-            "type": "boolean"
-          },
-          "verification_status": {
-            "enum": [
-              "current",
-              "unresolved",
-              "stale",
-              "contradicted"
-            ]
-          },
-          "metadata": {
-            "type": "object"
-          }
-        },
-        "additionalProperties": true
-      }
-    },
-    "provenance": {
-      "type": "object",
-      "required": [
-        "schema_version",
-        "generated_at",
-        "generator",
-        "generator_version",
-        "input_artifact_sha256",
-        "source_manifest_sha256"
-      ],
-      "properties": {
-        "schema_version": {
-          "type": "string"
-        },
-        "generated_at": {
-          "type": "string"
-        },
-        "generator": {
-          "type": "string"
-        },
-        "generator_version": {
-          "type": "string"
-        },
-        "input_artifact": {
-          "type": "string"
-        },
-        "input_artifact_sha256": {
-          "type": "string"
-        },
-        "source_manifest_sha256": {
-          "type": "string"
-        },
-        "metadata": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    "metadata": {
-      "type": "object"
-    }
+    "id": {"type": "string"},
+    "source": {"type": "string"},
+    "target": {"type": "string"},
+    "type": {"type": "string"},
+    "confidence": {"enum": ["high", "medium", "low", "none"]},
+    "state": {"enum": ["verified", "inferred", "unsupported", "stale", "contradicted", "partial", "unknown"]},
+    "needs_review": {"type": "boolean"},
+    "evidence": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+    "provenance": {"type": "object", "additionalProperties": true},
+    "metadata": {"type": "object"}
   },
   "additionalProperties": true
 }
