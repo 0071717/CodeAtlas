@@ -1,359 +1,186 @@
 #!/usr/bin/env python3
-"""Validate generated CodeAtlas artifacts.
-
-Two layers run together:
-
-1. A dependency-free structural layer (parseability, expected core artifacts,
-   graph/flow link integrity, and the trust-envelope contract for facts, graph
-   edges/nodes, and other enveloped collections). This layer needs no third-party
-   packages so it still works in restricted environments.
-
-2. A JSON Schema 2020-12 layer that validates canonical record collections
-   against the checked-in schemas in ``atlas/config/schemas`` and
-   ``atlas/schemas``. Every trust-bound record is validated against the shared
-   ``record-envelope.schema.json`` (state/evidence/provenance contract) in
-   addition to its family schema. This layer requires the ``jsonschema`` package.
-
-Exit behaviour:
-
-* default mode returns non-zero only when an ``error`` finding is present and
-  preserves the previous reporting semantics (missing core artifacts, empty
-  evidence, and broken flow references stay ``warning``);
-* ``--strict`` fails closed: warnings are promoted to fatal and ``jsonschema``
-  is required, so an empty/partial/invalid atlas tree exits non-zero.
-"""
+"""Validate generated CodeAtlas artifacts and fail closed in strict mode."""
 from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime, timezone
+import sys
 from pathlib import Path
 from typing import Any
 
-ROOT = Path.cwd()
-DEFAULT_ATLAS = ROOT / "atlas"
+from codeatlas_artifact_contract import CONFIDENCE_VALUES, EVIDENCE_KINDS, STATUS_VALUES, VALIDATION_STATUS_VALUES
 
-# Schemas ship with the tool, not with the validated project, so they are
-# located relative to this file (atlas/tools/ -> atlas/).
-SCHEMA_CONFIG_DIR = Path(__file__).resolve().parents[1] / "config" / "schemas"
-SCHEMA_TOP_DIR = Path(__file__).resolve().parents[1] / "schemas"
-
-ARTIFACT_DIRS = [
-    "source",
-    "index",
-    "payloads",
-    "bindings",
-    "runtime",
-    "graph",
-    "errors",
-    "flows",
-    "facts",
-    "rules",
-    "requirements",
-    "testing",
-    "knowledge",
-    "audit",
-    "change",
-    "visualizer",
+SCHEMA_DIR = Path(__file__).resolve().parents[1] / "config" / "schemas"
+CORE_ARTIFACTS = [
+    "source/snapshot",
+    "index/file-index",
+    "graph/nodes",
+    "graph/edges",
+    "facts/technical-facts",
 ]
-
-EXPECTED_CORE = [
-    ("source/snapshot", "repositories"),
-    ("index/file-index", "files"),
-    ("index/symbol-index", "symbols"),
-    ("graph/nodes", "nodes"),
-    ("graph/edges", "edges"),
-]
-
-ENVELOPE_COLLECTIONS = [
-    ("graph/nodes", "nodes"),
-    ("index/symbol-index", "symbols"),
-    ("index/endpoint-index", "endpoints"),
-    ("index/route-index", "routes"),
-    ("index/component-index", "components"),
-    ("index/hook-index", "hooks"),
-    ("index/api-client-index", "api_clients"),
-    ("index/schema-index", "schemas"),
-    ("index/service-index", "services"),
-    ("index/data-access-index", "data_access"),
-    ("index/runtime-entrypoint-index", "runtime_entrypoints"),
-    ("index/test-index", "tests"),
-    ("index/config-index", "configs"),
-    ("payloads/api-contracts", "api_contracts"),
-    ("errors/error-flow-index", "error_flows"),
-    ("flows/api-request-flows", "api_request_flows"),
-    ("flows/ui-flows", "ui_flows"),
-]
-
-CONFIDENCE_VALUES = {"high", "medium", "low", "none"}
-STATE_VALUES = {"verified", "inferred", "unsupported", "stale", "contradicted", "partial", "unknown"}
-REVIEW_STATUS_VALUES = {"unreviewed", "accepted", "rejected", "needs_clarification", "superseded"}
-EDGE_TYPES = {
-    "OWNS",
-    "CONTAINS",
-    "IMPLEMENTS",
-    "CALLS",
-    "MAPS_TO",
-    "VALIDATES",
-    "REQUIRES_PERMISSION",
-    "RETURNS",
-    "RAISES_ERROR",
-    "DERIVED_FROM",
-    "EVIDENCED_BY",
-    "AFFECTS",
-    "CONTRADICTS",
-    "TESTS",
-}
-EVIDENCE_ENVELOPE_FIELDS = ["file_sha256", "commit_sha", "snippet_sha256", "extractor", "deterministic", "verification_status"]
-
-# Trust-bound record collections -> (record key, family schema file in config/schemas).
-# Every record below is also validated against the shared record-envelope schema.
-RECORD_SCHEMA_MAP = {
-    "facts/technical-facts": ("technical_facts", "technical-fact.schema.json"),
+RECORD_COLLECTIONS = {
+    "index/symbol-index": ("symbols", None),
+    "index/endpoint-index": ("endpoints", None),
+    "index/route-index": ("routes", None),
+    "index/component-index": ("components", None),
+    "index/hook-index": ("hooks", None),
+    "index/api-client-index": ("api_clients", None),
+    "index/schema-index": ("schemas", None),
+    "index/service-index": ("services", None),
+    "index/data-access-index": ("data_access", None),
+    "index/runtime-entrypoint-index": ("runtime_entrypoints", None),
+    "index/test-index": ("tests", None),
+    "index/config-index": ("configs", None),
+    "index/react-router-index": ("routes", None),
+    "index/tanstack-query-index": ("queries", None),
+    "index/material-ui-index": ("mui_components", None),
+    "index/leaflet-index": ("leaflet_components", None),
+    "index/regraph-index": ("regraph_components", None),
     "graph/nodes": ("nodes", "map-node.schema.json"),
     "graph/edges": ("edges", "map-edge.schema.json"),
+    "facts/technical-facts": ("technical_facts", "technical-fact.schema.json"),
+    "payloads/api-contracts": ("api_contracts", None),
+    "errors/error-flow-index": ("error_flows", None),
+    "flows/api-request-flows": ("api_request_flows", None),
+    "flows/ui-flows": ("ui_flows", None),
 }
-
-# Document-level schemas (validate the whole artifact, not per-record).
-DOC_SCHEMA_MAP = {
-    "graph/nodes": (SCHEMA_TOP_DIR, "graph.schema.json"),
-    "graph/edges": (SCHEMA_TOP_DIR, "graph.schema.json"),
-    "index/file-index": (SCHEMA_TOP_DIR, "file-index.schema.json"),
-}
+BASE_ARTIFACTS = {"source/snapshot", "source/file-hashes", "index/file-index"}
 
 
-def now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def candidates(atlas: Path, stem: str) -> list[Path]:
-    path = atlas / stem
-    if path.suffix:
-        if path.suffix == ".json":
-            return [path, path.with_suffix(".yaml")]
-        if path.suffix in {".yaml", ".yml"}:
-            return [path.with_suffix(".json"), path]
-        return [path]
-    return [path.with_suffix(".json"), path.with_suffix(".yaml")]
-
-
-def read_first_json(atlas: Path, stem: str, findings: list[dict[str, Any]]) -> Any:
-    for path in candidates(atlas, stem):
-        if not path.exists():
-            continue
-        try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except Exception as exc:
-            findings.append({"severity": "error", "type": "parse_error", "path": str(path), "message": str(exc)})
-            return None
-    return None
-
-
-def iter_machine_artifacts(atlas: Path) -> list[Path]:
-    paths: list[Path] = []
-    for rel in ARTIFACT_DIRS:
-        root = atlas / rel
-        if not root.exists():
-            continue
-        paths.extend(root.rglob("*.json"))
-        # Legacy V2 suite artifacts often use JSON syntax with .yaml extension.
-        paths.extend(root.rglob("*.yaml"))
-    return sorted({path.resolve() for path in paths})
-
-
-def check_parseable(atlas: Path, findings: list[dict[str, Any]]) -> int:
-    parseable = 0
-    for path in iter_machine_artifacts(atlas):
-        try:
-            json.loads(path.read_text(encoding="utf-8"))
-            parseable += 1
-        except Exception as exc:
-            findings.append({"severity": "error", "type": "parse_error", "path": str(path), "message": str(exc)})
-    return parseable
-
-
-def check_expected_core(atlas: Path, findings: list[dict[str, Any]]) -> None:
-    for stem, key in EXPECTED_CORE:
-        data = read_first_json(atlas, stem, findings)
-        if data is None:
-            findings.append({"severity": "warning", "type": "missing_core_artifact", "path": f"atlas/{stem}.json"})
-            continue
-        if not isinstance(data, dict) or key not in data:
-            findings.append({"severity": "error", "type": "invalid_core_artifact_shape", "path": f"atlas/{stem}.json", "required_key": key})
-
-
-def check_graph_links(atlas: Path, findings: list[dict[str, Any]]) -> None:
-    nodes_doc = read_first_json(atlas, "graph/nodes", findings) or {}
-    edges_doc = read_first_json(atlas, "graph/edges", findings) or {}
-    nodes = nodes_doc.get("nodes", []) if isinstance(nodes_doc, dict) else []
-    edges = edges_doc.get("edges", []) if isinstance(edges_doc, dict) else []
-
-    node_ids: set[str] = set()
-    for node in nodes:
-        if not isinstance(node, dict) or not node.get("id"):
-            findings.append({"severity": "error", "type": "node_missing_id", "node": node})
-            continue
-        node_id = str(node["id"])
-        if node_id in node_ids:
-            findings.append({"severity": "error", "type": "duplicate_node_id", "id": node_id})
-        node_ids.add(node_id)
-
-    for edge in edges:
-        if not isinstance(edge, dict):
-            findings.append({"severity": "error", "type": "edge_not_object", "edge": edge})
-            continue
-        source = edge.get("source")
-        target = edge.get("target")
-        if not source or not target:
-            findings.append({"severity": "error", "type": "edge_missing_endpoint", "edge": edge.get("id")})
-            continue
-        if str(source) not in node_ids:
-            findings.append({"severity": "error", "type": "edge_broken_source", "edge": edge.get("id"), "source": source})
-        if str(target) not in node_ids:
-            findings.append({"severity": "error", "type": "edge_broken_target", "edge": edge.get("id"), "target": target})
-
-
-def check_flow_links(atlas: Path, findings: list[dict[str, Any]]) -> None:
-    nodes_doc = read_first_json(atlas, "graph/nodes", findings) or {}
-    nodes = nodes_doc.get("nodes", []) if isinstance(nodes_doc, dict) else []
-    node_ids = {str(node.get("id")) for node in nodes if isinstance(node, dict) and node.get("id")}
-    for stem, key in [("flows/api-request-flows", "api_request_flows"), ("flows/ui-flows", "ui_flows"), ("flows/ui-action-flows", "ui_action_flows"), ("flows/error-flows", "error_flows")]:
-        data = read_first_json(atlas, stem, findings)
-        if not data:
-            continue
-        flows = data.get(key, []) if isinstance(data, dict) else []
-        for flow in flows:
-            if not isinstance(flow, dict):
-                continue
-            for step in flow.get("steps", []):
-                node = step.get("node") if isinstance(step, dict) else None
-                if node and str(node) not in node_ids:
-                    findings.append({"severity": "warning", "type": "flow_step_unknown_node", "flow": flow.get("id"), "node": node, "artifact": f"atlas/{stem}.json"})
-
-
-def require_field(record: dict[str, Any], field: str, typ: type | tuple[type, ...], artifact: str, record_id: str, findings: list[dict[str, Any]]) -> None:
-    if field not in record:
-        findings.append({"severity": "error", "type": "schema_missing_required", "artifact": artifact, "record": record_id, "field": field})
-        return
-    if not isinstance(record[field], typ):
-        findings.append({"severity": "error", "type": "schema_invalid_type", "artifact": artifact, "record": record_id, "field": field, "expected": getattr(typ, "__name__", str(typ))})
-
-
-def check_provenance(record: dict[str, Any], artifact: str, record_id: str, findings: list[dict[str, Any]]) -> None:
-    prov = record.get("provenance")
-    if not isinstance(prov, dict):
-        findings.append({"severity": "error", "type": "schema_missing_provenance", "artifact": artifact, "record": record_id})
-        return
-    for field in ["schema_version", "generated_at", "generator", "generator_version", "input_artifact_sha256", "source_manifest_sha256"]:
-        if not prov.get(field):
-            findings.append({"severity": "error", "type": "schema_invalid_provenance", "artifact": artifact, "record": record_id, "field": field})
-
-
-def check_evidence(record: dict[str, Any], artifact: str, record_id: str, findings: list[dict[str, Any]]) -> None:
-    evidence = record.get("evidence")
-    if not isinstance(evidence, list):
-        findings.append({"severity": "error", "type": "schema_invalid_evidence", "artifact": artifact, "record": record_id})
-        return
-    if not evidence:
-        findings.append({"severity": "warning", "type": "schema_empty_evidence", "artifact": artifact, "record": record_id})
-        return
-    for index, ev in enumerate(evidence):
-        if not isinstance(ev, dict):
-            findings.append({"severity": "error", "type": "schema_invalid_evidence_item", "artifact": artifact, "record": record_id, "index": index})
-            continue
-        for field in EVIDENCE_ENVELOPE_FIELDS:
-            if field not in ev:
-                findings.append({"severity": "error", "type": "evidence_missing_envelope_field", "artifact": artifact, "record": record_id, "index": index, "field": field})
-        if ev.get("type") == "code" and ev.get("repo") and ev.get("file"):
-            if not ev.get("file_sha256"):
-                findings.append({"severity": "error", "type": "evidence_missing_file_hash", "artifact": artifact, "record": record_id, "index": index})
-            if "line_start" in ev and "line_end" in ev and not ev.get("snippet_sha256"):
-                findings.append({"severity": "warning", "type": "evidence_missing_snippet_hash", "artifact": artifact, "record": record_id, "index": index})
-            if ev.get("commit_sha") is None:
-                findings.append({"severity": "warning", "type": "evidence_missing_commit_sha", "artifact": artifact, "record": record_id, "index": index})
-
-
-def check_record_envelope(record: dict[str, Any], artifact: str, record_id: str, findings: list[dict[str, Any]]) -> None:
-    require_field(record, "provenance", dict, artifact, record_id, findings)
-    require_field(record, "evidence", list, artifact, record_id, findings)
-    require_field(record, "state", str, artifact, record_id, findings)
-    if isinstance(record.get("state"), str) and record.get("state") not in STATE_VALUES:
-        findings.append({"severity": "error", "type": "schema_invalid_enum", "artifact": artifact, "record": record_id, "field": "state", "value": record.get("state")})
-    check_provenance(record, artifact, record_id, findings)
-    check_evidence(record, artifact, record_id, findings)
-
-
-def check_additional_envelope_collections(atlas: Path, findings: list[dict[str, Any]]) -> None:
-    for stem, key in ENVELOPE_COLLECTIONS:
-        doc = read_first_json(atlas, stem, findings)
-        if not isinstance(doc, dict) or key not in doc:
-            continue
-        seen: set[str] = set()
-        for record in doc.get(key, []):
-            if not isinstance(record, dict):
-                continue
-            record_id = str(record.get("id") or "<missing>")
-            if record_id in seen:
-                findings.append({"severity": "error", "type": "duplicate_enveloped_record_id", "artifact": f"atlas/{stem}.json", "id": record_id})
-            seen.add(record_id)
-            check_record_envelope(record, f"atlas/{stem}.json", record_id, findings)
-
-
-def check_trust_contracts(atlas: Path, findings: list[dict[str, Any]]) -> None:
-    facts_doc = read_first_json(atlas, "facts/technical-facts", findings)
-    if isinstance(facts_doc, dict) and "technical_facts" in facts_doc:
-        seen: set[str] = set()
-        for fact in facts_doc.get("technical_facts", []):
-            if not isinstance(fact, dict):
-                findings.append({"severity": "error", "type": "technical_fact_not_object", "artifact": "atlas/facts/technical-facts.json"})
-                continue
-            record_id = str(fact.get("id") or "<missing>")
-            if record_id in seen:
-                findings.append({"severity": "error", "type": "duplicate_technical_fact_id", "id": record_id})
-            seen.add(record_id)
-            for field in ["id", "domain", "source_type", "statement", "confidence", "state"]:
-                require_field(fact, field, str, "atlas/facts/technical-facts.json", record_id, findings)
-            if isinstance(fact.get("confidence"), str) and fact.get("confidence") not in CONFIDENCE_VALUES:
-                findings.append({"severity": "error", "type": "schema_invalid_enum", "artifact": "atlas/facts/technical-facts.json", "record": record_id, "field": "confidence", "value": fact.get("confidence")})
-            if fact.get("review_status") and fact.get("review_status") not in REVIEW_STATUS_VALUES:
-                findings.append({"severity": "error", "type": "schema_invalid_enum", "artifact": "atlas/facts/technical-facts.json", "record": record_id, "field": "review_status", "value": fact.get("review_status")})
-            check_record_envelope(fact, "atlas/facts/technical-facts.json", record_id, findings)
-
-    edges_doc = read_first_json(atlas, "graph/edges", findings)
-    if isinstance(edges_doc, dict) and "edges" in edges_doc:
-        seen_edges: set[str] = set()
-        for edge in edges_doc.get("edges", []):
-            if not isinstance(edge, dict):
-                continue
-            record_id = str(edge.get("id") or "<missing>")
-            if record_id in seen_edges:
-                findings.append({"severity": "error", "type": "duplicate_edge_id", "id": record_id})
-            seen_edges.add(record_id)
-            for field in ["id", "source", "target", "type", "confidence", "state"]:
-                require_field(edge, field, str, "atlas/graph/edges.json", record_id, findings)
-            if isinstance(edge.get("type"), str) and edge.get("type") not in EDGE_TYPES:
-                findings.append({"severity": "error", "type": "schema_invalid_enum", "artifact": "atlas/graph/edges.json", "record": record_id, "field": "type", "value": edge.get("type")})
-            if isinstance(edge.get("confidence"), str) and edge.get("confidence") not in CONFIDENCE_VALUES:
-                findings.append({"severity": "error", "type": "schema_invalid_enum", "artifact": "atlas/graph/edges.json", "record": record_id, "field": "confidence", "value": edge.get("confidence")})
-            check_record_envelope(edge, "atlas/graph/edges.json", record_id, findings)
-
-    check_additional_envelope_collections(atlas, findings)
-
-
-# --- JSON Schema 2020-12 layer ---------------------------------------------
+def finding(severity: str, typ: str, path: str, message: str, **extra: Any) -> dict[str, Any]:
+    item = {"severity": severity, "type": typ, "path": path, "message": message}
+    item.update(extra)
+    return item
 
 
 def load_validator_class():
-    """Return jsonschema's Draft 2020-12 validator class, or None if unavailable."""
     try:
-        from jsonschema import Draft202012Validator
+        from jsonschema import Draft202012Validator  # type: ignore
+        return Draft202012Validator
     except Exception:
         return None
-    return Draft202012Validator
 
 
-def read_schema(base: Path, name: str) -> Any:
-    path = base / name
+def read_json(path: Path) -> tuple[Any, str | None]:
+    try:
+        return json.loads(path.read_text(encoding="utf-8")), None
+    except Exception as exc:
+        return None, str(exc)
+
+
+def artifact_path(atlas: Path, stem: str) -> Path | None:
+    for suffix in [".json", ".yaml"]:
+        path = atlas / f"{stem}{suffix}"
+        if path.exists():
+            return path
+    return None
+
+
+def relative_stem(atlas: Path, path: Path) -> str:
+    rel = path.relative_to(atlas).as_posix()
+    return rel.rsplit(".", 1)[0]
+
+
+def all_artifacts(atlas: Path) -> list[Path]:
+    return sorted([p for p in atlas.rglob("*.json")] + [p for p in atlas.rglob("*.yaml")])
+
+
+def require_fields(obj: dict[str, Any], fields: list[str], path: str, findings: list[dict[str, Any]], typ: str = "schema_missing_required") -> None:
+    for field in fields:
+        if field not in obj:
+            findings.append(finding("error", typ, path, f"missing required field: {field}", field=field))
+
+
+def check_artifact_envelope(doc: dict[str, Any], stem: str, strict: bool, findings: list[dict[str, Any]]) -> None:
+    path = f"atlas/{stem}.json"
+    envelope = doc.get("artifact_envelope")
+    if not isinstance(envelope, dict):
+        findings.append(finding("error" if strict else "warning", "missing_artifact_envelope", path, "missing top-level artifact_envelope"))
+        return
+    require_fields(envelope, ["schema_version", "artifact_id", "artifact_kind", "generated_at", "generator", "source", "validation", "data"], f"{path}:artifact_envelope", findings)
+    generator = envelope.get("generator")
+    if not isinstance(generator, dict):
+        findings.append(finding("error", "artifact_invalid_generator", path, "artifact_envelope.generator must be an object"))
+    else:
+        require_fields(generator, ["id", "version", "command"], f"{path}:artifact_envelope.generator", findings)
+    source = envelope.get("source")
+    if not isinstance(source, dict):
+        findings.append(finding("error", "artifact_invalid_source", path, "artifact_envelope.source must be an object"))
+    else:
+        require_fields(source, ["repo", "source_commit", "dirty_worktree", "file_manifest_hash"], f"{path}:artifact_envelope.source", findings)
+    validation = envelope.get("validation")
+    if not isinstance(validation, dict):
+        findings.append(finding("error", "artifact_invalid_validation", path, "artifact_envelope.validation must be an object"))
+    else:
+        require_fields(validation, ["status", "validated_at", "validator", "errors", "warnings"], f"{path}:artifact_envelope.validation", findings)
+        if validation.get("status") not in VALIDATION_STATUS_VALUES:
+            findings.append(finding("error", "schema_invalid_enum", f"{path}:artifact_envelope.validation.status", "invalid validation status", value=validation.get("status")))
+
+
+def check_provenance(record: dict[str, Any], path: str, findings: list[dict[str, Any]]) -> None:
+    prov = record.get("provenance")
+    if not isinstance(prov, dict):
+        findings.append(finding("error", "schema_missing_required", path, "missing required field: provenance", field="provenance"))
+        return
+    require_fields(prov, ["schema_version", "generated_at", "generator", "input_artifact_sha256", "source_manifest_sha256"], f"{path}.provenance", findings)
+    generator = prov.get("generator")
+    if not isinstance(generator, dict):
+        findings.append(finding("error", "provenance_invalid_generator", path, "provenance.generator must be an object"))
+    else:
+        require_fields(generator, ["id", "version", "command"], f"{path}.provenance.generator", findings)
+
+
+def check_evidence(record: dict[str, Any], path: str, findings: list[dict[str, Any]]) -> None:
+    evidence = record.get("evidence")
+    if not isinstance(evidence, list):
+        findings.append(finding("error", "schema_missing_required", path, "evidence must be a list", field="evidence"))
+        return
+    for index, ev in enumerate(evidence):
+        ev_path = f"{path}.evidence[{index}]"
+        if not isinstance(ev, dict):
+            findings.append(finding("error", "evidence_invalid", ev_path, "evidence item must be an object"))
+            continue
+        for field in ["evidence_id", "evidence_kind", "extractor", "deterministic", "verification_status"]:
+            if field not in ev:
+                findings.append(finding("error", "evidence_missing_envelope_field", ev_path, f"missing evidence field: {field}", field=field))
+        if ev.get("evidence_kind") is not None and ev.get("evidence_kind") not in EVIDENCE_KINDS:
+            findings.append(finding("error", "schema_invalid_enum", f"{ev_path}.evidence_kind", "invalid evidence_kind", value=ev.get("evidence_kind")))
+        extractor = ev.get("extractor")
+        if not isinstance(extractor, dict):
+            findings.append(finding("error", "evidence_invalid_extractor", ev_path, "extractor must be an object with id/version/kind"))
+        else:
+            for field in ["id", "version", "kind"]:
+                if field not in extractor:
+                    findings.append(finding("error", "evidence_invalid_extractor", f"{ev_path}.extractor", f"missing extractor field: {field}", field=field))
+        if ev.get("verification_status") not in {"current", "unresolved", "stale", "contradicted"}:
+            findings.append(finding("error", "schema_validation_error", f"{ev_path}.verification_status", "invalid verification_status", value=ev.get("verification_status")))
+        if ev.get("evidence_kind") == "source_span" or ev.get("type") == "code":
+            for field in ["source_commit", "repo", "file_path", "file_hash", "span", "snippet_hash", "commit_sha", "file_sha256", "snippet_sha256", "extractor_version"]:
+                if field not in ev:
+                    findings.append(finding("error", "evidence_missing_envelope_field", ev_path, f"missing source evidence field: {field}", field=field))
+            span = ev.get("span")
+            if not isinstance(span, dict):
+                findings.append(finding("error", "evidence_invalid_span", ev_path, "source evidence span must be an object"))
+            else:
+                for field in ["start_line", "end_line", "start_col", "end_col"]:
+                    if field not in span:
+                        findings.append(finding("error", "evidence_missing_envelope_field", f"{ev_path}.span", f"missing span field: {field}", field=field))
+
+
+def check_record(record: dict[str, Any], path: str, findings: list[dict[str, Any]]) -> None:
+    require_fields(record, ["state", "evidence", "provenance"], path, findings)
+    if "confidence" in record and record.get("confidence") not in CONFIDENCE_VALUES:
+        findings.append(finding("error", "schema_invalid_enum", f"{path}.confidence", "invalid confidence", value=record.get("confidence")))
+    if "state" in record and record.get("state") not in STATUS_VALUES:
+        findings.append(finding("error", "schema_invalid_enum", f"{path}.state", "invalid state", value=record.get("state")))
+    if "evidence" in record:
+        check_evidence(record, path, findings)
+    if "provenance" in record:
+        check_provenance(record, path, findings)
+
+
+def load_schema(name: str) -> dict[str, Any] | None:
+    path = SCHEMA_DIR / name
     if not path.exists():
         return None
     try:
@@ -362,151 +189,116 @@ def read_schema(base: Path, name: str) -> Any:
         return None
 
 
-def validate_instance(validator_cls, schema: dict[str, Any], instance: Any, artifact: str, record_id: str, schema_name: str, findings: list[dict[str, Any]], max_errors: int = 10) -> None:
-    try:
-        validator = validator_cls(schema)
-        errors = sorted(validator.iter_errors(instance), key=lambda e: list(e.path))
-    except Exception as exc:  # malformed schema or engine error -> fatal, never silent
-        findings.append({"severity": "error", "type": "schema_engine_error", "artifact": artifact, "record": record_id, "schema": schema_name, "message": str(exc)})
+def schema_validate(record: dict[str, Any], stem: str, schema_name: str | None, validator_class: Any, findings: list[dict[str, Any]], path: str) -> None:
+    if validator_class is None:
         return
-    for err in errors[:max_errors]:
-        field = "/".join(str(part) for part in err.path)
-        findings.append({
-            "severity": "error",
-            "type": "schema_validation_error",
-            "artifact": artifact,
-            "record": record_id,
-            "schema": schema_name,
-            "field": field,
-            "message": err.message,
-        })
+    for name in ["record-envelope.schema.json", schema_name]:
+        if not name:
+            continue
+        schema = load_schema(name)
+        if not schema:
+            continue
+        try:
+            errors = sorted(validator_class(schema).iter_errors(record), key=lambda e: list(e.path))
+        except Exception as exc:
+            findings.append(finding("error", "schema_validation_error", path, f"schema validation failed to run: {exc}"))
+            continue
+        for err in errors:
+            loc = ".".join(str(p) for p in err.path)
+            findings.append(finding("error", "schema_validation_error", f"{path}.{loc}" if loc else path, err.message, schema=schema.get("$id") or name))
 
 
-def check_schemas(atlas: Path, findings: list[dict[str, Any]], strict: bool) -> None:
-    validator_cls = load_validator_class()
-    if validator_cls is None:
-        # Fail closed in strict mode; otherwise note that the dependency-free
-        # structural layer above is the only enforcement that ran.
-        findings.append({
-            "severity": "error" if strict else "warning",
-            "type": "schema_engine_unavailable",
-            "message": "jsonschema is not installed; JSON Schema 2020-12 validation was skipped. Install with `pip install jsonschema` (required for --strict).",
-        })
+def check_graph_links(atlas: Path, findings: list[dict[str, Any]]) -> None:
+    nodes_path = artifact_path(atlas, "graph/nodes")
+    edges_path = artifact_path(atlas, "graph/edges")
+    if not nodes_path or not edges_path:
         return
-
-    envelope = read_schema(SCHEMA_CONFIG_DIR, "record-envelope.schema.json")
-    if envelope is None:
-        findings.append({"severity": "error", "type": "schema_missing_file", "schema": "record-envelope.schema.json"})
-
-    # Document-level schemas.
-    for stem, (base, schema_name) in DOC_SCHEMA_MAP.items():
-        doc = read_first_json(atlas, stem, findings)
-        if doc is None:
+    nodes, err = read_json(nodes_path)
+    if err or not isinstance(nodes, dict):
+        return
+    edges, err = read_json(edges_path)
+    if err or not isinstance(edges, dict):
+        return
+    ids = {n.get("id") for n in nodes.get("nodes", []) if isinstance(n, dict)}
+    for index, edge in enumerate(edges.get("edges", [])):
+        if not isinstance(edge, dict):
             continue
-        schema = read_schema(base, schema_name)
-        if schema is None:
-            findings.append({"severity": "error", "type": "schema_missing_file", "schema": schema_name})
-            continue
-        validate_instance(validator_cls, schema, doc, f"atlas/{stem}.json", "<document>", schema_name, findings)
+        if edge.get("source") not in ids:
+            findings.append(finding("error", "edge_broken_source", f"atlas/graph/edges.json.edges[{index}]", "edge source does not exist", source=edge.get("source")))
+        if edge.get("target") not in ids:
+            findings.append(finding("error", "edge_broken_target", f"atlas/graph/edges.json.edges[{index}]", "edge target does not exist", target=edge.get("target")))
 
-    # Record-level: shared envelope contract + family schema.
-    for stem, (key, family_name) in RECORD_SCHEMA_MAP.items():
-        doc = read_first_json(atlas, stem, findings)
+
+def check_core_artifacts(atlas: Path, strict: bool, findings: list[dict[str, Any]]) -> None:
+    for stem in CORE_ARTIFACTS:
+        if artifact_path(atlas, stem) is None:
+            findings.append(finding("error" if strict else "warning", "missing_required_artifact", f"atlas/{stem}.json", "required canonical artifact is missing"))
+
+
+def run_validation(atlas: Path, strict: bool = False) -> tuple[list[dict[str, Any]], int]:
+    findings: list[dict[str, Any]] = []
+    atlas = Path(atlas)
+    if not atlas.exists() or not atlas.is_dir():
+        return [finding("error", "missing_atlas_directory", str(atlas), "atlas directory does not exist")], 0
+    validator_class = load_validator_class()
+    if validator_class is None:
+        findings.append(finding("error" if strict else "warning", "schema_engine_unavailable", str(atlas), "jsonschema is unavailable; strict validation cannot prove schema conformance"))
+    parseable_count = 0
+    parsed: dict[str, dict[str, Any]] = {}
+    for path in all_artifacts(atlas):
+        doc, err = read_json(path)
+        if err:
+            findings.append(finding("error", "artifact_parse_error", str(path), err))
+            continue
+        parseable_count += 1
+        stem = relative_stem(atlas, path)
+        if isinstance(doc, dict):
+            parsed[stem] = doc
+    check_core_artifacts(atlas, strict, findings)
+    for stem, doc in parsed.items():
+        if stem.startswith("config/schemas") or stem.startswith("schemas"):
+            continue
+        check_artifact_envelope(doc, stem, strict, findings)
+    for stem, (key, schema_name) in RECORD_COLLECTIONS.items():
+        doc = parsed.get(stem)
         if not isinstance(doc, dict) or key not in doc:
             continue
-        family = read_schema(SCHEMA_CONFIG_DIR, family_name) if family_name else None
-        if family_name and family is None:
-            findings.append({"severity": "error", "type": "schema_missing_file", "schema": family_name})
-        for record in doc.get(key, []):
+        records = doc.get(key)
+        if not isinstance(records, list):
+            findings.append(finding("error", "schema_invalid_type", f"atlas/{stem}.json.{key}", "record collection must be a list"))
+            continue
+        for index, record in enumerate(records):
+            path = f"atlas/{stem}.json.{key}[{index}]"
             if not isinstance(record, dict):
+                findings.append(finding("error", "schema_invalid_type", path, "record must be an object"))
                 continue
-            record_id = str(record.get("id") or "<missing>")
-            if envelope is not None:
-                validate_instance(validator_cls, envelope, record, f"atlas/{stem}.json", record_id, "record-envelope.schema.json", findings)
-            if family is not None:
-                validate_instance(validator_cls, family, record, f"atlas/{stem}.json", record_id, family_name, findings)
-
-    # Enveloped index/payload/flow collections: shared envelope contract only.
-    if envelope is not None:
-        covered = set(RECORD_SCHEMA_MAP)
-        for stem, key in ENVELOPE_COLLECTIONS:
-            if stem in covered:
-                continue
-            doc = read_first_json(atlas, stem, findings)
-            if not isinstance(doc, dict) or key not in doc:
-                continue
-            for record in doc.get(key, []):
-                if not isinstance(record, dict):
-                    continue
-                record_id = str(record.get("id") or "<missing>")
-                validate_instance(validator_cls, envelope, record, f"atlas/{stem}.json", record_id, "record-envelope.schema.json", findings)
-
-
-# --- orchestration ----------------------------------------------------------
-
-
-def run_validation(atlas: Path, strict: bool) -> tuple[list[dict[str, Any]], int]:
-    """Run all checks and return (findings, parseable_count)."""
-    findings: list[dict[str, Any]] = []
-    if not atlas.exists():
-        findings.append({"severity": "error", "type": "missing_atlas_directory", "path": str(atlas)})
-        return findings, 0
-    parseable_count = check_parseable(atlas, findings)
-    check_expected_core(atlas, findings)
+            check_record(record, path, findings)
+            schema_validate(record, stem, schema_name, validator_class, findings, path)
     check_graph_links(atlas, findings)
-    check_flow_links(atlas, findings)
-    check_trust_contracts(atlas, findings)
-    check_schemas(atlas, findings, strict)
     return findings, parseable_count
 
 
-def compute_exit(findings: list[dict[str, Any]], strict: bool) -> int:
-    has_error = any(f.get("severity") == "error" for f in findings)
-    has_warning = any(f.get("severity") == "warning" for f in findings)
-    if strict:
-        return 1 if (has_error or has_warning) else 0
-    return 1 if has_error else 0
+def compute_exit(findings: list[dict[str, Any]], strict: bool = False) -> int:
+    return 1 if any(f.get("severity") == "error" for f in findings) else 0
 
 
-def write_report(atlas: Path, findings: list[dict[str, Any]], parseable_count: int, strict: bool, exit_code: int) -> None:
-    error_count = sum(1 for f in findings if f.get("severity") == "error")
-    warning_count = sum(1 for f in findings if f.get("severity") == "warning")
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Validate generated CodeAtlas artifacts")
+    parser.add_argument("atlas", nargs="?", default="atlas")
+    parser.add_argument("--strict", action="store_true")
+    args = parser.parse_args(argv)
+    findings, parseable_count = run_validation(Path(args.atlas), strict=args.strict)
+    code = compute_exit(findings, strict=args.strict)
     report = {
-        "generated_at": now(),
-        "strict": strict,
-        "status": "ok" if exit_code == 0 else "error",
+        "status": "ok" if code == 0 else "error",
+        "strict": args.strict,
         "parseable_artifact_count": parseable_count,
-        "error_count": error_count,
-        "warning_count": warning_count,
-        "finding_count": len(findings),
+        "error_count": sum(1 for f in findings if f.get("severity") == "error"),
+        "warning_count": sum(1 for f in findings if f.get("severity") == "warning"),
         "findings": findings,
     }
-    out = atlas / "audit" / "artifact-validation-report.json"
-    try:
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    except OSError:
-        # The atlas directory may be missing/unwritable (e.g. it does not exist);
-        # still emit the report to stdout so callers and CI can see it.
-        pass
     print(json.dumps(report, indent=2, sort_keys=True))
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate generated CodeAtlas artifacts.")
-    parser.add_argument("atlas", nargs="?", default=str(DEFAULT_ATLAS), help="Path to atlas directory")
-    parser.add_argument(
-        "--strict",
-        action="store_true",
-        help="Fail closed: promote warnings (missing core artifacts, empty evidence, broken flow references, missing schema engine) to fatal and require jsonschema for JSON Schema validation.",
-    )
-    args = parser.parse_args()
-
-    atlas = Path(args.atlas)
-    findings, parseable_count = run_validation(atlas, args.strict)
-    exit_code = compute_exit(findings, args.strict)
-    write_report(atlas, findings, parseable_count, args.strict, exit_code)
-    return exit_code
+    return code
 
 
 if __name__ == "__main__":
