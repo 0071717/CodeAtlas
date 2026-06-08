@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codeatlas.dev/schemas/file-index.schema.json",
   "title": "CodeAtlas File Index",
   "type": "object",
   "required": ["generated_at", "files"],

@@ -101,6 +101,15 @@ def run_git(repo_path: Path, *args: str) -> str | None:
         return None
 
 
+def worktree_dirty(repo: "Repo") -> bool | None:
+    """Return True/False if the repo's worktree is dirty, or None if it is not a
+    git repo (so callers can distinguish "clean" from "unknown")."""
+    status = run_git(repo.path, "status", "--porcelain")
+    if status is None:
+        return None
+    return bool(status.strip())
+
+
 def simple_project_parser(text: str) -> dict[str, Any]:
     """Small fallback parser for the existing atlas/config/project.yaml shape."""
     repositories: dict[str, dict[str, Any]] = {}
@@ -354,15 +363,151 @@ def raise_summaries(node: ast.AST) -> list[str]:
     return sorted(raises)
 
 
+def _kw_map(call: ast.Call) -> dict[str, ast.AST]:
+    return {kw.arg: kw.value for kw in call.keywords if kw.arg}
+
+
+def _literal_list(node: ast.AST | None) -> list[Any] | None:
+    if isinstance(node, (ast.List, ast.Tuple)):
+        return [literal_value(elt) for elt in node.elts]
+    return None
+
+
+def depends_targets_from_list(node: ast.AST | None) -> list[str]:
+    """Extract the callables wrapped by Depends(...) inside a dependencies=[...] list."""
+    out: list[str] = []
+    if isinstance(node, (ast.List, ast.Tuple)):
+        for elt in node.elts:
+            if isinstance(elt, ast.Call) and call_name(elt.func).split(".")[-1] == "Depends" and elt.args:
+                out.append(ast.unparse(elt.args[0]) if hasattr(ast, "unparse") else None)
+    return [x for x in out if x]
+
+
+def signature_depends(node: ast.AST) -> list[str]:
+    """Extract Depends(...) callables declared as default values in a handler signature."""
+    out: list[str] = []
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        defaults = list(node.args.defaults) + [d for d in node.args.kw_defaults if d is not None]
+        for default in defaults:
+            if isinstance(default, ast.Call) and call_name(default.func).split(".")[-1] == "Depends" and default.args:
+                out.append(ast.unparse(default.args[0]) if hasattr(ast, "unparse") else None)
+    return [x for x in out if x]
+
+
+def uses_background_tasks(node: ast.AST) -> bool:
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        for arg in list(node.args.args) + list(node.args.kwonlyargs):
+            if "BackgroundTasks" in (annotation_text(arg.annotation) or ""):
+                return True
+    return False
+
+
+OPENSEARCH_OPERATIONS = {"search", "msearch", "count", "update_by_query", "delete_by_query", "scroll", "bulk"}
+
+
+def reconstruct_dsl(node: ast.AST | None) -> tuple[Any, bool]:
+    """Return (reconstructed_dsl, unresolved). A pure-literal body is reconstructed
+    exactly; any dynamic content is kept as source text and marked unresolved so it
+    is never silently treated as a complete query."""
+    if node is None:
+        return None, True
+    try:
+        return ast.literal_eval(node), False
+    except Exception:
+        return (ast.unparse(node) if hasattr(ast, "unparse") else None), True
+
+
+def opensearch_queries(rec: dict[str, Any], tree: ast.AST, imports: list[str]) -> list[dict[str, Any]]:
+    if not any(("opensearch" in imp.lower()) or ("elasticsearch" in imp.lower()) for imp in imports):
+        return []
+    out: list[dict[str, Any]] = []
+    for call in [n for n in ast.walk(tree) if isinstance(n, ast.Call)]:
+        operation = call_name(call.func).split(".")[-1]
+        if operation not in OPENSEARCH_OPERATIONS:
+            continue
+        kw = _kw_map(call)
+        index = literal_value(kw["index"]) if "index" in kw else None
+        body_node = kw.get("body")
+        if body_node is None and call.args:
+            body_node = call.args[-1]
+        dsl, unresolved = reconstruct_dsl(body_node)
+        line = getattr(call, "lineno", None)
+        out.append(
+            {
+                "id": f"opensearch.{rec['repo']}.{slug(rec['path'])}.{line}",
+                "repo": rec["repo"],
+                "file": rec["path"],
+                "operation": operation,
+                "index": index,
+                "query_dsl": dsl,
+                "unresolved": unresolved,
+                "line_start": line,
+                "confidence": "low" if unresolved else "high",
+                "needs_review": unresolved,
+                "evidence": code_evidence(rec, None, line, line),
+            }
+        )
+    return out
+
+
+def resolve_fastapi_prefixes(endpoints: list[dict[str, Any]], routers: list[dict[str, Any]], includes: list[dict[str, Any]]) -> None:
+    """Compose full endpoint paths from APIRouter prefixes and include_router prefixes.
+
+    This is deterministic but best-effort: cross-file router variables are matched
+    by name within a repo. A composed path is labelled in `path_resolution` and
+    marked needs_review so it is never mistaken for a materialised (verified) route.
+    """
+    router_prefix_by_file: dict[tuple[str, str, str], str] = {}
+    router_prefix_by_var: dict[tuple[str, str], str] = {}
+    for router in routers:
+        prefix = router.get("prefix")
+        if prefix:
+            router_prefix_by_file[(router["repo"], router["file"], router["var"])] = prefix
+            router_prefix_by_var.setdefault((router["repo"], router["var"]), prefix)
+    include_prefix_by_var: dict[tuple[str, str], str] = {}
+    for inc in includes:
+        prefix = inc.get("prefix")
+        included = inc.get("included") or ""
+        if prefix and included:
+            include_prefix_by_var.setdefault((inc["repo"], included.split(".")[-1]), prefix)
+
+    for ep in endpoints:
+        obj = ep.get("decorator_object") or ""
+        var = obj.split(".")[-1]
+        local = ep.get("path")
+        router_prefix = router_prefix_by_file.get((ep["repo"], ep["file"], var)) or router_prefix_by_var.get((ep["repo"], var)) or ""
+        app_prefix = include_prefix_by_var.get((ep["repo"], var)) or ""
+        ep["router_prefix"] = router_prefix or None
+        ep["app_prefix"] = app_prefix or None
+        if local is None:
+            ep["full_path"] = None
+            ep["path_resolution"] = "unresolved"
+            continue
+        ep["full_path"] = f"{app_prefix}{router_prefix}{local}"
+        if app_prefix:
+            ep["path_resolution"] = "app_included_inferred"
+            ep["needs_review"] = True
+            if ep.get("confidence") == "high":
+                ep["confidence"] = "medium"
+        elif router_prefix:
+            ep["path_resolution"] = "router_prefixed"
+            ep["needs_review"] = True
+            if ep.get("confidence") == "high":
+                ep["confidence"] = "medium"
+        else:
+            ep["path_resolution"] = "literal"
+
+
 def python_indexes(repo: Repo, rec: dict[str, Any], path: Path, text: str) -> dict[str, list[dict[str, Any]]]:
-    result = {k: [] for k in ["symbols", "imports", "endpoints", "schemas", "services", "data_access", "runtime", "tests"]}
+    result = {k: [] for k in ["symbols", "imports", "endpoints", "schemas", "services", "data_access", "runtime", "tests", "routers", "router_includes", "opensearch"]}
     try:
         tree = ast.parse(text)
     except Exception as exc:
         result["runtime"].append({"id": f"parse_error.{rec['repo']}.{slug(rec['path'])}", "type": "parse_error", "repo": rec["repo"], "file": rec["path"], "error": str(exc), "needs_review": True, "confidence": "low"})
         return result
 
-    for imp in import_names(tree):
+    imports = import_names(tree)
+    for imp in imports:
         result["imports"].append({"id": f"import.{rec['repo']}.{slug(rec['path'])}.{slug(imp)}", "repo": rec["repo"], "file": rec["path"], "import": imp})
 
     for node in ast.walk(tree):
@@ -420,6 +565,10 @@ def python_indexes(repo: Repo, rec: dict[str, Any], path: Path, text: str) -> di
                 short = dec_name.split(".")[-1].lower()
                 if isinstance(dec_call, ast.Call) and short in HTTP_METHODS:
                     route_path = literal_value(dec_call.args[0]) if dec_call.args else None
+                    dec_object = dec_name.rsplit(".", 1)[0] if "." in dec_name else ""
+                    kw = _kw_map(dec_call)
+                    decorator_deps = depends_targets_from_list(kw.get("dependencies"))
+                    sig_deps = signature_depends(node)
                     endpoint_id = f"endpoint.{rec['repo']}.{slug(short + '.' + str(route_path or node.name))}"
                     result["endpoints"].append(
                         {
@@ -429,6 +578,12 @@ def python_indexes(repo: Repo, rec: dict[str, Any], path: Path, text: str) -> di
                             "method": short.upper(),
                             "path": route_path,
                             "handler": node.name,
+                            "decorator_object": dec_object,
+                            "response_model": annotation_text(kw["response_model"]) if "response_model" in kw else None,
+                            "status_code": literal_value(kw["status_code"]) if "status_code" in kw else None,
+                            "tags": _literal_list(kw.get("tags")),
+                            "dependencies": sorted(set(sig_deps + decorator_deps)),
+                            "uses_background_tasks": uses_background_tasks(node),
                             "source_symbol": symbol_id,
                             "calls": calls,
                             "branches": branch_summaries(node),
@@ -443,14 +598,42 @@ def python_indexes(repo: Repo, rec: dict[str, Any], path: Path, text: str) -> di
                 if "exception_handler" in dec_name.lower():
                     result["runtime"].append({"id": f"exception_handler.{rec['repo']}.{slug(node.name)}", "type": "exception_handler", "repo": rec["repo"], "file": rec["path"], "symbol": node.name, "source_symbol": symbol_id, "confidence": "medium", "needs_review": True, "evidence": evidence})
 
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+            ctor = call_name(node.value.func).split(".")[-1]
+            if ctor in {"APIRouter", "FastAPI"}:
+                kw = _kw_map(node.value)
+                prefix = literal_value(kw["prefix"]) if "prefix" in kw else None
+                line = getattr(node, "lineno", None)
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        result["routers"].append({"id": f"router.{rec['repo']}.{slug(rec['path'])}.{target.id}", "repo": rec["repo"], "file": rec["path"], "var": target.id, "kind": ctor, "prefix": prefix, "line_start": line, "confidence": "high", "needs_review": False, "evidence": code_evidence(rec, target.id, line, line)})
+
     for call in [n for n in ast.walk(tree) if isinstance(n, ast.Call)]:
         cname = call_name(call.func)
+        short_call = cname.split(".")[-1]
         lineno = getattr(call, "lineno", None)
         if cname.endswith("add_middleware"):
             result["runtime"].append({"id": f"middleware.{rec['repo']}.{slug(rec['path'])}.{lineno}", "type": "middleware_registration", "repo": rec["repo"], "file": rec["path"], "line_start": lineno, "confidence": "high", "needs_review": False, "evidence": code_evidence(rec, None, lineno, lineno)})
         if cname.endswith("Depends"):
             dep = ast.unparse(call.args[0]) if call.args and hasattr(ast, "unparse") else None
             result["runtime"].append({"id": f"dependency.{rec['repo']}.{slug(rec['path'])}.{lineno}", "type": "dependency", "repo": rec["repo"], "file": rec["path"], "dependency": dep, "line_start": lineno, "confidence": "medium", "needs_review": True, "evidence": code_evidence(rec, None, lineno, lineno)})
+        if short_call == "include_router":
+            kw = _kw_map(call)
+            included = (call_name(call.args[0]) or (ast.unparse(call.args[0]) if hasattr(ast, "unparse") else None)) if call.args else None
+            result["router_includes"].append({"id": f"router_include.{rec['repo']}.{slug(rec['path'])}.{lineno}", "repo": rec["repo"], "file": rec["path"], "includer": cname.rsplit(".", 1)[0] if "." in cname else "", "included": included, "prefix": literal_value(kw["prefix"]) if "prefix" in kw else None, "line_start": lineno, "confidence": "high", "needs_review": False, "evidence": code_evidence(rec, None, lineno, lineno)})
+        if short_call == "add_api_route":
+            kw = _kw_map(call)
+            path_val = literal_value(call.args[0]) if call.args else (literal_value(kw["path"]) if "path" in kw else None)
+            handler_node = call.args[1] if len(call.args) > 1 else kw.get("endpoint")
+            handler = (call_name(handler_node) or (ast.unparse(handler_node) if hasattr(ast, "unparse") else None)) if handler_node is not None else None
+            methods = _literal_list(kw.get("methods")) or ["GET"]
+            for method in methods:
+                result["endpoints"].append({"id": f"endpoint.{rec['repo']}.{slug(str(method).lower() + '.' + str(path_val or handler or lineno))}", "repo": rec["repo"], "file": rec["path"], "method": str(method).upper(), "path": path_val, "handler": handler, "decorator_object": cname.rsplit(".", 1)[0] if "." in cname else "", "programmatic": True, "dependencies": [], "line_start": lineno, "confidence": "high" if path_val else "medium", "needs_review": path_val is None, "evidence": code_evidence(rec, handler, lineno, lineno)})
+        if short_call == "add_exception_handler":
+            result["runtime"].append({"id": f"exception_handler.{rec['repo']}.{slug(rec['path'])}.{lineno}", "type": "exception_handler_registration", "repo": rec["repo"], "file": rec["path"], "line_start": lineno, "confidence": "high", "needs_review": False, "evidence": code_evidence(rec, None, lineno, lineno)})
+
+    result["opensearch"] = opensearch_queries(rec, tree, imports)
     return result
 
 
@@ -506,11 +689,25 @@ def cmd_snapshot(_: argparse.Namespace) -> None:
                 "exists": repo.exists(),
                 "git_branch": run_git(repo.path, "rev-parse", "--abbrev-ref", "HEAD") if repo.exists() else None,
                 "git_commit": run_git(repo.path, "rev-parse", "HEAD") if repo.exists() else None,
+                "dirty_worktree": worktree_dirty(repo) if repo.exists() else None,
             }
         )
+    commits = [r.get("git_commit") for r in repo_records if r.get("git_commit")]
+    snapshot_doc = {
+        "generated_at": now(),
+        # indexed_commit is the single-repo convenience scalar; indexed_commits
+        # is the per-repo map for multi-repo projects. dirty_worktree is True if
+        # any repo had uncommitted changes when the snapshot was taken.
+        "indexed_commit": commits[0] if len(commits) == 1 else None,
+        "indexed_commits": {r["id"]: r.get("git_commit") for r in repo_records},
+        "dirty_worktree": any(bool(r.get("dirty_worktree")) for r in repo_records),
+        "repositories": repo_records,
+        "file_count": len(files),
+        "missing": missing,
+    }
     write(ATLAS / "source/file-hashes.yaml", {"generated_at": now(), "files": files})
     write(ATLAS / "index/file-index.yaml", {"generated_at": now(), "files": files})
-    write(ATLAS / "source/snapshot.yaml", {"generated_at": now(), "repositories": repo_records, "file_count": len(files), "missing": missing})
+    write(ATLAS / "source/snapshot.yaml", snapshot_doc)
     print("snapshot", len(files))
 
 
@@ -524,6 +721,7 @@ def cmd_index(args: argparse.Namespace) -> None:
         "symbols": [], "imports": [], "endpoints": [], "routes": [], "components": [],
         "hooks": [], "api_clients": [], "schemas": [], "services": [], "data_access": [],
         "runtime": [], "ui_actions": [], "tests": [], "configs": [],
+        "routers": [], "router_includes": [], "opensearch": [],
     }
     for rec in files:
         repo = repo_by_id.get(rec["repo"])
@@ -558,10 +756,14 @@ def cmd_index(args: argparse.Namespace) -> None:
         "test-index.yaml": ("tests", collected["tests"]),
         "config-index.yaml": ("configs", collected["configs"]),
     }
+    # Compose FastAPI router/app prefixes onto endpoints before writing them.
+    resolve_fastapi_prefixes(collected["endpoints"], collected["routers"], collected["router_includes"])
     for filename, (key, items) in output_map.items():
         write(ATLAS / "index" / filename, {"generated_at": now(), key: sorted(items, key=lambda x: x.get("id", ""))})
     write(ATLAS / "runtime/runtime-map.yaml", {"generated_at": now(), "runtime_entrypoints": collected["runtime"]})
     write(ATLAS / "testing/test-inventory.yaml", {"generated_at": now(), "tests": collected["tests"]})
+    write(ATLAS / "index/fastapi-router-index.yaml", {"generated_at": now(), "routers": collected["routers"], "router_includes": collected["router_includes"]})
+    write(ATLAS / "payloads/opensearch-query-dsl.yaml", {"generated_at": now(), "queries": collected["opensearch"]})
     print("index", len(collected["symbols"]), len(collected["endpoints"]), len(collected["routes"]), len(collected["api_clients"]))
 
 

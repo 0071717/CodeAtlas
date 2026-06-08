@@ -37,7 +37,8 @@
       "enum": [
         "high",
         "medium",
-        "low"
+        "low",
+        "none"
       ]
     }
   }

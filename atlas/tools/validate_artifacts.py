@@ -1,11 +1,26 @@
 #!/usr/bin/env python3
-"""Validate generated CodeAtlas artifacts without external dependencies.
+"""Validate generated CodeAtlas artifacts.
 
-This pass covers the trust-core contract for canonical facts, graph edges, and
-other trust-envelope-normalized generated artefact collections in addition to
-parseability, graph links, and flow step links. It intentionally implements only
-the small CodeAtlas schema subset needed by generated artifacts so the validator
-remains dependency-free in restricted environments.
+Two layers run together:
+
+1. A dependency-free structural layer (parseability, expected core artifacts,
+   graph/flow link integrity, and the trust-envelope contract for facts, graph
+   edges/nodes, and other enveloped collections). This layer needs no third-party
+   packages so it still works in restricted environments.
+
+2. A JSON Schema 2020-12 layer that validates canonical record collections
+   against the checked-in schemas in ``atlas/config/schemas`` and
+   ``atlas/schemas``. Every trust-bound record is validated against the shared
+   ``record-envelope.schema.json`` (state/evidence/provenance contract) in
+   addition to its family schema. This layer requires the ``jsonschema`` package.
+
+Exit behaviour:
+
+* default mode returns non-zero only when an ``error`` finding is present and
+  preserves the previous reporting semantics (missing core artifacts, empty
+  evidence, and broken flow references stay ``warning``);
+* ``--strict`` fails closed: warnings are promoted to fatal and ``jsonschema``
+  is required, so an empty/partial/invalid atlas tree exits non-zero.
 """
 from __future__ import annotations
 
@@ -17,6 +32,11 @@ from typing import Any
 
 ROOT = Path.cwd()
 DEFAULT_ATLAS = ROOT / "atlas"
+
+# Schemas ship with the tool, not with the validated project, so they are
+# located relative to this file (atlas/tools/ -> atlas/).
+SCHEMA_CONFIG_DIR = Path(__file__).resolve().parents[1] / "config" / "schemas"
+SCHEMA_TOP_DIR = Path(__file__).resolve().parents[1] / "schemas"
 
 ARTIFACT_DIRS = [
     "source",
@@ -65,7 +85,7 @@ ENVELOPE_COLLECTIONS = [
     ("flows/ui-flows", "ui_flows"),
 ]
 
-CONFIDENCE_VALUES = {"high", "medium", "low"}
+CONFIDENCE_VALUES = {"high", "medium", "low", "none"}
 STATE_VALUES = {"verified", "inferred", "unsupported", "stale", "contradicted", "partial", "unknown"}
 REVIEW_STATUS_VALUES = {"unreviewed", "accepted", "rejected", "needs_clarification", "superseded"}
 EDGE_TYPES = {
@@ -85,6 +105,21 @@ EDGE_TYPES = {
     "TESTS",
 }
 EVIDENCE_ENVELOPE_FIELDS = ["file_sha256", "commit_sha", "snippet_sha256", "extractor", "deterministic", "verification_status"]
+
+# Trust-bound record collections -> (record key, family schema file in config/schemas).
+# Every record below is also validated against the shared record-envelope schema.
+RECORD_SCHEMA_MAP = {
+    "facts/technical-facts": ("technical_facts", "technical-fact.schema.json"),
+    "graph/nodes": ("nodes", "map-node.schema.json"),
+    "graph/edges": ("edges", "map-edge.schema.json"),
+}
+
+# Document-level schemas (validate the whole artifact, not per-record).
+DOC_SCHEMA_MAP = {
+    "graph/nodes": (SCHEMA_TOP_DIR, "graph.schema.json"),
+    "graph/edges": (SCHEMA_TOP_DIR, "graph.schema.json"),
+    "index/file-index": (SCHEMA_TOP_DIR, "file-index.schema.json"),
+}
 
 
 def now() -> str:
@@ -305,12 +340,141 @@ def check_trust_contracts(atlas: Path, findings: list[dict[str, Any]]) -> None:
     check_additional_envelope_collections(atlas, findings)
 
 
-def write_report(atlas: Path, findings: list[dict[str, Any]], parseable_count: int) -> None:
+# --- JSON Schema 2020-12 layer ---------------------------------------------
+
+
+def load_validator_class():
+    """Return jsonschema's Draft 2020-12 validator class, or None if unavailable."""
+    try:
+        from jsonschema import Draft202012Validator
+    except Exception:
+        return None
+    return Draft202012Validator
+
+
+def read_schema(base: Path, name: str) -> Any:
+    path = base / name
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def validate_instance(validator_cls, schema: dict[str, Any], instance: Any, artifact: str, record_id: str, schema_name: str, findings: list[dict[str, Any]], max_errors: int = 10) -> None:
+    try:
+        validator = validator_cls(schema)
+        errors = sorted(validator.iter_errors(instance), key=lambda e: list(e.path))
+    except Exception as exc:  # malformed schema or engine error -> fatal, never silent
+        findings.append({"severity": "error", "type": "schema_engine_error", "artifact": artifact, "record": record_id, "schema": schema_name, "message": str(exc)})
+        return
+    for err in errors[:max_errors]:
+        field = "/".join(str(part) for part in err.path)
+        findings.append({
+            "severity": "error",
+            "type": "schema_validation_error",
+            "artifact": artifact,
+            "record": record_id,
+            "schema": schema_name,
+            "field": field,
+            "message": err.message,
+        })
+
+
+def check_schemas(atlas: Path, findings: list[dict[str, Any]], strict: bool) -> None:
+    validator_cls = load_validator_class()
+    if validator_cls is None:
+        # Fail closed in strict mode; otherwise note that the dependency-free
+        # structural layer above is the only enforcement that ran.
+        findings.append({
+            "severity": "error" if strict else "warning",
+            "type": "schema_engine_unavailable",
+            "message": "jsonschema is not installed; JSON Schema 2020-12 validation was skipped. Install with `pip install jsonschema` (required for --strict).",
+        })
+        return
+
+    envelope = read_schema(SCHEMA_CONFIG_DIR, "record-envelope.schema.json")
+    if envelope is None:
+        findings.append({"severity": "error", "type": "schema_missing_file", "schema": "record-envelope.schema.json"})
+
+    # Document-level schemas.
+    for stem, (base, schema_name) in DOC_SCHEMA_MAP.items():
+        doc = read_first_json(atlas, stem, findings)
+        if doc is None:
+            continue
+        schema = read_schema(base, schema_name)
+        if schema is None:
+            findings.append({"severity": "error", "type": "schema_missing_file", "schema": schema_name})
+            continue
+        validate_instance(validator_cls, schema, doc, f"atlas/{stem}.json", "<document>", schema_name, findings)
+
+    # Record-level: shared envelope contract + family schema.
+    for stem, (key, family_name) in RECORD_SCHEMA_MAP.items():
+        doc = read_first_json(atlas, stem, findings)
+        if not isinstance(doc, dict) or key not in doc:
+            continue
+        family = read_schema(SCHEMA_CONFIG_DIR, family_name) if family_name else None
+        if family_name and family is None:
+            findings.append({"severity": "error", "type": "schema_missing_file", "schema": family_name})
+        for record in doc.get(key, []):
+            if not isinstance(record, dict):
+                continue
+            record_id = str(record.get("id") or "<missing>")
+            if envelope is not None:
+                validate_instance(validator_cls, envelope, record, f"atlas/{stem}.json", record_id, "record-envelope.schema.json", findings)
+            if family is not None:
+                validate_instance(validator_cls, family, record, f"atlas/{stem}.json", record_id, family_name, findings)
+
+    # Enveloped index/payload/flow collections: shared envelope contract only.
+    if envelope is not None:
+        covered = set(RECORD_SCHEMA_MAP)
+        for stem, key in ENVELOPE_COLLECTIONS:
+            if stem in covered:
+                continue
+            doc = read_first_json(atlas, stem, findings)
+            if not isinstance(doc, dict) or key not in doc:
+                continue
+            for record in doc.get(key, []):
+                if not isinstance(record, dict):
+                    continue
+                record_id = str(record.get("id") or "<missing>")
+                validate_instance(validator_cls, envelope, record, f"atlas/{stem}.json", record_id, "record-envelope.schema.json", findings)
+
+
+# --- orchestration ----------------------------------------------------------
+
+
+def run_validation(atlas: Path, strict: bool) -> tuple[list[dict[str, Any]], int]:
+    """Run all checks and return (findings, parseable_count)."""
+    findings: list[dict[str, Any]] = []
+    if not atlas.exists():
+        findings.append({"severity": "error", "type": "missing_atlas_directory", "path": str(atlas)})
+        return findings, 0
+    parseable_count = check_parseable(atlas, findings)
+    check_expected_core(atlas, findings)
+    check_graph_links(atlas, findings)
+    check_flow_links(atlas, findings)
+    check_trust_contracts(atlas, findings)
+    check_schemas(atlas, findings, strict)
+    return findings, parseable_count
+
+
+def compute_exit(findings: list[dict[str, Any]], strict: bool) -> int:
+    has_error = any(f.get("severity") == "error" for f in findings)
+    has_warning = any(f.get("severity") == "warning" for f in findings)
+    if strict:
+        return 1 if (has_error or has_warning) else 0
+    return 1 if has_error else 0
+
+
+def write_report(atlas: Path, findings: list[dict[str, Any]], parseable_count: int, strict: bool, exit_code: int) -> None:
     error_count = sum(1 for f in findings if f.get("severity") == "error")
     warning_count = sum(1 for f in findings if f.get("severity") == "warning")
     report = {
         "generated_at": now(),
-        "status": "ok" if error_count == 0 else "error",
+        "strict": strict,
+        "status": "ok" if exit_code == 0 else "error",
         "parseable_artifact_count": parseable_count,
         "error_count": error_count,
         "warning_count": warning_count,
@@ -318,30 +482,31 @@ def write_report(atlas: Path, findings: list[dict[str, Any]], parseable_count: i
         "findings": findings,
     }
     out = atlas / "audit" / "artifact-validation-report.json"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    try:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    except OSError:
+        # The atlas directory may be missing/unwritable (e.g. it does not exist);
+        # still emit the report to stdout so callers and CI can see it.
+        pass
     print(json.dumps(report, indent=2, sort_keys=True))
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate generated CodeAtlas artifacts.")
     parser.add_argument("atlas", nargs="?", default=str(DEFAULT_ATLAS), help="Path to atlas directory")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Fail closed: promote warnings (missing core artifacts, empty evidence, broken flow references, missing schema engine) to fatal and require jsonschema for JSON Schema validation.",
+    )
     args = parser.parse_args()
 
     atlas = Path(args.atlas)
-    findings: list[dict[str, Any]] = []
-    if not atlas.exists():
-        findings.append({"severity": "error", "type": "missing_atlas_directory", "path": str(atlas)})
-        write_report(atlas, findings, 0)
-        return 1
-
-    parseable_count = check_parseable(atlas, findings)
-    check_expected_core(atlas, findings)
-    check_graph_links(atlas, findings)
-    check_flow_links(atlas, findings)
-    check_trust_contracts(atlas, findings)
-    write_report(atlas, findings, parseable_count)
-    return 1 if any(f.get("severity") == "error" for f in findings) else 0
+    findings, parseable_count = run_validation(atlas, args.strict)
+    exit_code = compute_exit(findings, args.strict)
+    write_report(atlas, findings, parseable_count, args.strict, exit_code)
+    return exit_code
 
 
 if __name__ == "__main__":

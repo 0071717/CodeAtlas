@@ -96,12 +96,24 @@ def run_trust_envelope() -> int:
     return code
 
 
+def run_trust_verify(strict: bool = False) -> int:
+    """Re-check existing canonical artifacts against current source (emits
+    stale/contradicted). Fails closed in strict mode."""
+    args = ["--mode", "verify"]
+    if strict:
+        args.append("--strict")
+    code = run_python(TRUST_ENVELOPE, args)
+    promote_yaml_json_to_json()
+    return code
+
+
 def run_graph_report() -> int:
     return run_python(GRAPH_REPORT, [])
 
 
-def run_artifact_validation() -> int:
-    return run_python(ARTIFACT_VALIDATOR, [str(ATLAS)])
+def run_artifact_validation(strict: bool = False) -> int:
+    extra = ["--strict"] if strict else []
+    return run_python(ARTIFACT_VALIDATOR, [str(ATLAS), *extra])
 
 
 def run_no_mcp_memory() -> int:
@@ -130,6 +142,7 @@ def main() -> int:
             "all",
             "promote-json",
             "trust-envelope",
+            "verify",
             "graph-report",
             "validate-artifacts",
             "capability-audit",
@@ -137,11 +150,20 @@ def main() -> int:
             "no-mcp-memory",
         ],
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Fail closed: run artifact validation in strict mode (JSON Schema + missing-artifact + enum enforcement) and propagate its exit code.",
+    )
     args = parser.parse_args()
 
     if args.cmd == "doctor":
         code = run_python(DOCTOR, [])
         promote_yaml_json_to_json()
+        if args.strict:
+            run_trust_envelope()
+            validate_code = run_artifact_validation(strict=True)
+            return code or validate_code
         return code
     if args.cmd == "promote-json":
         promoted = promote_yaml_json_to_json()
@@ -149,12 +171,14 @@ def main() -> int:
         return 0
     if args.cmd == "trust-envelope":
         return run_trust_envelope()
+    if args.cmd == "verify":
+        return run_trust_verify(strict=args.strict)
     if args.cmd == "graph-report":
         run_trust_envelope()
         return run_graph_report()
     if args.cmd == "validate-artifacts":
         run_trust_envelope()
-        return run_artifact_validation()
+        return run_artifact_validation(strict=args.strict)
     if args.cmd == "capability-audit":
         run_trust_envelope()
         code = run_python(CAPABILITY_AUDIT, [])
@@ -178,8 +202,9 @@ def main() -> int:
     if args.cmd == "all" and code == 0:
         memory_code = run_no_mcp_memory()
         report_code = run_graph_report()
-        validate_code = run_artifact_validation()
-        return memory_code or report_code or validate_code
+        verify_code = run_trust_verify(strict=args.strict)
+        validate_code = run_artifact_validation(strict=args.strict)
+        return memory_code or report_code or verify_code or validate_code
     return code
 
 
