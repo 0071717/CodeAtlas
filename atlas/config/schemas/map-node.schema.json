@@ -1,176 +1,22 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://codeatlas.dev/schemas/map-node.schema.json",
-  "$comment": "Trust fields (state, confidence, evidence, provenance) follow record-envelope.schema.json and are enforced by atlas/tools/validate_artifacts.py (which requires state/evidence/provenance on every graph node). Record-root additionalProperties is intentionally open until generator field sets are frozen (roadmap Phase 7/8).",
+  "$comment": "Trust fields are enforced by record-envelope.schema.json and atlas/tools/validate_artifacts.py. This family schema validates the node-specific shape only.",
   "title": "CodeAtlasMapNode",
   "type": "object",
-  "required": [
-    "id"
-  ],
+  "required": ["id", "type", "state", "evidence", "provenance"],
   "properties": {
-    "id": {
-      "type": "string",
-      "description": "Stable hierarchical ID, e.g. endpoint.knowledge.search"
-    },
-    "domain": {
-      "type": "string"
-    },
-    "name": {
-      "type": "string"
-    },
-    "kind": {
-      "type": "string",
-      "description": "Legacy node kind such as backend_endpoint, service_function, frontend_route, schema_model, permission_rule"
-    },
-    "type": {
-      "type": "string",
-      "description": "Canonical V2 node type emitted by the graph builder."
-    },
-    "repo": {
-      "type": "string"
-    },
-    "file": {
-      "type": "string"
-    },
-    "symbol": {
-      "type": "string"
-    },
-    "line_start": {
-      "type": "integer"
-    },
-    "line_end": {
-      "type": "integer"
-    },
-    "confidence": {
-      "enum": [
-        "high",
-        "medium",
-        "low",
-        "none"
-      ]
-    },
-    "state": {
-      "enum": [
-        "verified",
-        "inferred",
-        "unsupported",
-        "stale",
-        "contradicted",
-        "partial",
-        "unknown"
-      ]
-    },
-    "needs_review": {
-      "type": "boolean"
-    },
-    "evidence": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": [
-          "type"
-        ],
-        "properties": {
-          "type": {
-            "type": "string"
-          },
-          "repo": {
-            "type": "string"
-          },
-          "file": {
-            "type": "string"
-          },
-          "symbol": {
-            "type": "string"
-          },
-          "line_start": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "line_end": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "commit_sha": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "file_sha256": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "snippet_sha256": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "extractor": {
-            "type": "string"
-          },
-          "deterministic": {
-            "type": "boolean"
-          },
-          "verification_status": {
-            "enum": [
-              "current",
-              "unresolved",
-              "stale",
-              "contradicted"
-            ]
-          },
-          "metadata": {
-            "type": "object"
-          }
-        },
-        "additionalProperties": true
-      }
-    },
-    "provenance": {
-      "type": "object",
-      "required": [
-        "schema_version",
-        "generated_at",
-        "generator",
-        "generator_version",
-        "input_artifact_sha256",
-        "source_manifest_sha256"
-      ],
-      "properties": {
-        "schema_version": {
-          "type": "string"
-        },
-        "generated_at": {
-          "type": "string"
-        },
-        "generator": {
-          "type": "string"
-        },
-        "generator_version": {
-          "type": "string"
-        },
-        "input_artifact": {
-          "type": "string"
-        },
-        "input_artifact_sha256": {
-          "type": "string"
-        },
-        "source_manifest_sha256": {
-          "type": "string"
-        },
-        "metadata": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    "metadata": {
-      "type": "object"
-    }
+    "id": {"type": "string"},
+    "type": {"type": "string"},
+    "repo": {"type": ["string", "null"]},
+    "file": {"type": ["string", "null"]},
+    "name": {"type": ["string", "null"]},
+    "confidence": {"enum": ["high", "medium", "low", "none"]},
+    "state": {"enum": ["verified", "inferred", "unsupported", "stale", "contradicted", "partial", "unknown"]},
+    "needs_review": {"type": "boolean"},
+    "evidence": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+    "provenance": {"type": "object", "additionalProperties": true},
+    "metadata": {"type": "object"}
   },
   "additionalProperties": true
 }
